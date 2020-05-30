@@ -144,7 +144,12 @@ namespace intel_driver
 			*(uint64_t*)((&kernel_injected_jmp[0]) + 2) = kernel_function_address;
 
 			const uint64_t kernel_NtQueryInformationAtom = GetKernelModuleExport(device_handle, utils::GetKernelModuleAddress("ntoskrnl.exe"), "NtQueryInformationAtom");
-
+			if (!kernel_NtQueryInformationAtom)
+			{
+				std::cout << "[-] Failed to get export ntoskrnl.NtQueryInformationAtom" << std::endl;
+				return false;
+			}
+			
 			if (!ReadMemory(device_handle, kernel_NtQueryInformationAtom, &original_kernel_function, sizeof(kernel_injected_jmp)))
 				return false;
 

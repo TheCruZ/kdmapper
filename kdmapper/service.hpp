@@ -2,6 +2,7 @@
 #include <Windows.h>
 #include <string>
 #include <filesystem>
+#include "intel_driver.hpp"
 
 namespace service
 {

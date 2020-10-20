@@ -5,7 +5,7 @@ bool ExistOtherService(SC_HANDLE service_manager) {
 	DWORD spaceNeeded = 0;
 	DWORD numServices = 0;
 	if (!EnumServicesStatus(service_manager, SERVICE_DRIVER, SERVICE_STATE_ALL, NULL, 0, &spaceNeeded, &numServices, 0) && GetLastError() != ERROR_MORE_DATA) {
-		printf("Can't enum service list error code: %d!!\n",GetLastError());
+		printf("[-] Can't enum service list error code: %d!!\n",GetLastError());
 		return true;
 	}
 	spaceNeeded += sizeof(ENUM_SERVICE_STATUSA);
@@ -21,13 +21,13 @@ bool ExistOtherService(SC_HANDLE service_manager) {
 				if (QueryServiceConfig(service_handle, config, 8096, &needed)) {
 					if (strstr(config->lpBinaryPathName, intel_driver::driver_name)) {
 						delete[] buffer;
-						printf("WARNING: Service called '%s' have same file name!!\n", config->lpDisplayName);
+						printf("[-] WARNING: Service called '%s' have same file name!!\n", config->lpDisplayName);
 						CloseServiceHandle(service_handle);
 						return false;
 					}
 				}
 				else {
-					printf("Note: Error query service %s error code: %d\n", service.lpServiceName, GetLastError());
+					printf("[-] Note: Error query service %s error code: %d\n", service.lpServiceName, GetLastError());
 				}
 				CloseServiceHandle(service_handle);
 			}
@@ -37,7 +37,7 @@ bool ExistOtherService(SC_HANDLE service_manager) {
 		return false; //no equal services we can continue
 	}
 	delete[] buffer;
-	printf("Can't enum service list!!\n");
+	printf("[-] Can't enum service list!!\n");
 	return true;
 
 }
@@ -46,7 +46,7 @@ bool ExistsValorantService(SC_HANDLE service_manager) {
 	DWORD spaceNeeded = 0;
 	DWORD numServices = 0;
 	if (!EnumServicesStatus(service_manager, SERVICE_DRIVER, SERVICE_STATE_ALL, NULL, 0, &spaceNeeded, &numServices, 0) && GetLastError() != ERROR_MORE_DATA) {
-		printf("Can't enum service list error code: %d!!\n", GetLastError());
+		printf("[-] Can't enum service list error code: %d!!\n", GetLastError());
 		return true;
 	}
 	spaceNeeded += sizeof(ENUM_SERVICE_STATUSA);
@@ -57,7 +57,7 @@ bool ExistsValorantService(SC_HANDLE service_manager) {
 			ENUM_SERVICE_STATUSA service = buffer[i];
 			if (strstr(service.lpServiceName,"vgk")) {
 				if ((service.ServiceStatus.dwCurrentState == SERVICE_RUNNING || service.ServiceStatus.dwCurrentState == SERVICE_START_PENDING)) {
-					printf("Valorant service running, kdmapper stoped to prevent BSOD!!\n");
+					printf("[-] Valorant service running, kdmapper stoped to prevent BSOD!!\n");
 					return true;
 				}
 
@@ -67,7 +67,7 @@ bool ExistsValorantService(SC_HANDLE service_manager) {
 		return false; //no valorant service found
 	}
 	delete[] buffer;
-	printf("Can't enum service list!!\n");
+	printf("[-] Can't enum service list!!\n");
 	return true;
 }
 
@@ -77,7 +77,7 @@ bool service::RegisterAndStart(const std::string& driver_path)
 	const SC_HANDLE sc_manager_handle = OpenSCManager(nullptr, nullptr, SC_MANAGER_ALL_ACCESS);
 
 	if (!sc_manager_handle) {
-		printf("Can't open service manager\n");
+		printf("[-] Can't open service manager\n");
 		return false;
 	}
 	if (ExistOtherService(sc_manager_handle)) {
@@ -96,7 +96,7 @@ bool service::RegisterAndStart(const std::string& driver_path)
 
 		if (!service_handle)
 		{
-			printf("Can't create the vulnerable service, check your AV!!\n");
+			printf("[-] Can't create the vulnerable service, check your AV!!\n");
 			CloseServiceHandle(sc_manager_handle);
 			return false;
 		}
@@ -107,7 +107,7 @@ bool service::RegisterAndStart(const std::string& driver_path)
 	CloseServiceHandle(service_handle);
 	CloseServiceHandle(sc_manager_handle);
 	if (!result) {
-		printf("Can't start the vulnerable service, check your AV!!\n");
+		printf("[-] Can't start the vulnerable service, check your AV!!\n");
 	}
 	return result;
 }

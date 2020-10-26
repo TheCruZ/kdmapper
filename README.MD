@@ -1,8 +1,8 @@
 # kdmapper
 
-Updated kdmapper for the new 2004 windows version
+Updated kdmapper for Windows v.20H2
 
-Updated done by @TheCruZ for Unknowncheats
+Update done by @TheCruZ for Unknowncheats
 
 https://www.unknowncheats.me/forum/members/1117395.html
 

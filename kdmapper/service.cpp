@@ -57,7 +57,7 @@ bool ExistsValorantService(SC_HANDLE service_manager) {
 			ENUM_SERVICE_STATUSA service = buffer[i];
 			if (strstr(service.lpServiceName,"vgk")) {
 				if ((service.ServiceStatus.dwCurrentState == SERVICE_RUNNING || service.ServiceStatus.dwCurrentState == SERVICE_START_PENDING)) {
-					printf("[-] Valorant service running, kdmapper stoped to prevent BSOD!!\n");
+					printf("[-] Valorant service running, kdmapper stopped to prevent BSOD!!\n");
 					return true;
 				}
 

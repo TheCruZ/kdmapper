@@ -31,7 +31,7 @@ namespace nt
 		SYSTEM_HANDLE Handles[1];
 	} SYSTEM_HANDLE_INFORMATION_EX, *PSYSTEM_HANDLE_INFORMATION_EX;
 
-	typedef enum _POOL_TYPE {
+	typedef enum class _POOL_TYPE {
 		NonPagedPool,
 		NonPagedPoolExecute,
 		PagedPool,

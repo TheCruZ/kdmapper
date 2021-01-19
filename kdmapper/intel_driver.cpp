@@ -272,72 +272,6 @@ uint64_t intel_driver::GetKernelModuleExport(HANDLE device_handle, uint64_t kern
 	return 0;
 }
 
-bool intel_driver::GetNtGdiDdDDIReclaimAllocations2KernelInfo(HANDLE device_handle, uint64_t * out_kernel_function_ptr, uint64_t * out_kernel_original_function_address)
-{
-	// 488b05650e1400 mov     rax, qword ptr [rip+offset]
-	// ff150f211600   call    cs:__guard_dispatch_icall_fptr
-
-	static uint64_t kernel_function_ptr = 0;
-	static uint64_t kernel_original_function_address = 0;
-
-	if (!kernel_function_ptr || !kernel_original_function_address)
-	{
-		const uint64_t kernel_NtGdiDdDDIReclaimAllocations2 = GetKernelModuleExport(device_handle, utils::GetKernelModuleAddress("win32kbase.sys"), "NtGdiDdDDIReclaimAllocations2");
-
-		if (!kernel_NtGdiDdDDIReclaimAllocations2)
-		{
-			std::cout << "[-] Failed to get export win32kbase.NtGdiDdDDIReclaimAllocations2" << std::endl;
-			return false;
-		}
-
-		const uint64_t kernel_function_ptr_offset_address = kernel_NtGdiDdDDIReclaimAllocations2 + 0x7;
-		int32_t function_ptr_offset = 0; // offset is a SIGNED integer
-
-		if (!ReadMemory(device_handle, kernel_function_ptr_offset_address, &function_ptr_offset, sizeof(function_ptr_offset)))
-			return false;
-
-		kernel_function_ptr = kernel_NtGdiDdDDIReclaimAllocations2 + 0xB + function_ptr_offset;
-
-		if (!ReadMemory(device_handle, kernel_function_ptr, &kernel_original_function_address, sizeof(kernel_original_function_address)))
-			return false;
-	}
-
-	*out_kernel_function_ptr = kernel_function_ptr;
-	*out_kernel_original_function_address = kernel_original_function_address;
-
-	return true;
-}
-
-bool intel_driver::GetNtGdiGetCOPPCompatibleOPMInformationInfo(HANDLE device_handle, uint64_t * out_kernel_function_ptr, uint8_t * out_kernel_original_bytes)
-{
-	// 48ff2551d81f00   jmp	cs:__imp_NtGdiGetCOPPCompatibleOPMInformation
-	// cccccccccc       padding
-
-	static uint64_t kernel_function_ptr = 0;
-	static uint8_t kernel_original_jmp_bytes[12] = { 0 };
-
-	if (!kernel_function_ptr || kernel_original_jmp_bytes[0] == 0)
-	{
-		const uint64_t kernel_NtGdiGetCOPPCompatibleOPMInformation = GetKernelModuleExport(device_handle, utils::GetKernelModuleAddress("win32kfull.sys"), "NtGdiGetCOPPCompatibleOPMInformation");
-
-		if (!kernel_NtGdiGetCOPPCompatibleOPMInformation)
-		{
-			std::cout << "[-] Failed to get export win32kfull.NtGdiGetCOPPCompatibleOPMInformation" << std::endl;
-			return false;
-		}
-
-		kernel_function_ptr = kernel_NtGdiGetCOPPCompatibleOPMInformation;
-
-		if (!ReadMemory(device_handle, kernel_function_ptr, kernel_original_jmp_bytes, sizeof(kernel_original_jmp_bytes)))
-			return false;
-	}
-
-	*out_kernel_function_ptr = kernel_function_ptr;
-	memcpy(out_kernel_original_bytes, kernel_original_jmp_bytes, sizeof(kernel_original_jmp_bytes));
-
-	return true;
-}
-
 bool intel_driver::ClearMmUnloadedDrivers(HANDLE device_handle)
 {
 	ULONG buffer_size = 0;
@@ -353,9 +287,10 @@ bool intel_driver::ClearMmUnloadedDrivers(HANDLE device_handle)
 		status = NtQuerySystemInformation(static_cast<SYSTEM_INFORMATION_CLASS>(nt::SystemExtendedHandleInformation), buffer, buffer_size, &buffer_size);
 	}
 
-	if (!NT_SUCCESS(status))
+	if (!NT_SUCCESS(status) || buffer == 0)
 	{
-		VirtualFree(buffer, 0, MEM_RELEASE);
+		if (buffer != 0)
+			VirtualFree(buffer, 0, MEM_RELEASE);
 		return false;
 	}
 

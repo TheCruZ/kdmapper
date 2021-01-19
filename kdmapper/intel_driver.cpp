@@ -1,5 +1,16 @@
 #include "intel_driver.hpp"
 
+bool intel_driver::IsRunning()
+{
+	const HANDLE file_handle = CreateFileW(L"\\\\.\\Nal", FILE_ANY_ACCESS, 0, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+	if (file_handle != nullptr && file_handle != INVALID_HANDLE_VALUE)
+	{
+		CloseHandle(file_handle);
+		return true;
+	}
+	return false;
+}
+
 HANDLE intel_driver::Load()
 {
 	std::cout << "[<] Loading vulnerable driver" << std::endl;

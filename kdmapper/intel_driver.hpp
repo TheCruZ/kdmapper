@@ -62,6 +62,7 @@ namespace intel_driver
 		uint32_t number_of_bytes;
 	}UNMAP_IO_SPACE_BUFFER_INFO, * PUNMAP_IO_SPACE_BUFFER_INFO;
 
+	bool IsRunning();
 	HANDLE Load();
 	void Unload(HANDLE device_handle);
 

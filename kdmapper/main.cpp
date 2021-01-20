@@ -28,17 +28,18 @@ int main(const int argc, char** argv)
 	if (!iqvw64e_device_handle || iqvw64e_device_handle == INVALID_HANDLE_VALUE)
 	{
 		std::cout << "[-] Failed to load driver iqvw64e.sys" << std::endl;
-		service::StopAndRemove(intel_driver::driver_name);
+		intel_driver::Unload(iqvw64e_device_handle);
 		return -1;
 	}
 
 	if (!kdmapper::MapDriver(iqvw64e_device_handle, driver_path))
 	{
 		std::cout << "[-] Failed to map " << driver_path << std::endl;
-		service::StopAndRemove(intel_driver::driver_name);
+		intel_driver::Unload(iqvw64e_device_handle);
 		return -1;
 	}
 
 	intel_driver::Unload(iqvw64e_device_handle);
 	std::cout << "[+] success" << std::endl;
+
 }

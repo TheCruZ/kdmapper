@@ -73,7 +73,7 @@ uint64_t kdmapper::MapDriver(HANDLE iqvw64e_device_handle, const std::string& dr
 			break;
 		}
 
-		VirtualFree(local_image_base, 0, MEM_RELEASE);
+		
 
 		// Call driver entry point
 
@@ -90,6 +90,8 @@ uint64_t kdmapper::MapDriver(HANDLE iqvw64e_device_handle, const std::string& dr
 		}
 
 		std::cout << "[+] DriverEntry returned 0x" << std::hex << std::setw(8) << std::setfill('0') << std::uppercase << status << std::nouppercase << std::dec << std::endl;
+		
+		VirtualFree(local_image_base, 0, MEM_RELEASE);
 
 		// Erase PE headers
 
@@ -98,8 +100,9 @@ uint64_t kdmapper::MapDriver(HANDLE iqvw64e_device_handle, const std::string& dr
 
 	} while (false);
 
-	if (local_image_base)
-		VirtualFree(local_image_base, 0, MEM_RELEASE);
+	
+	VirtualFree(local_image_base, 0, MEM_RELEASE);
+
 	intel_driver::FreePool(iqvw64e_device_handle, kernel_image_base);
 
 	return 0;

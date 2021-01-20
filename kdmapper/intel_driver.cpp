@@ -23,7 +23,8 @@ HANDLE intel_driver::Load()
 		std::cout << "[-] Failed to get temp path" << std::endl;
 		return nullptr;
 	}
-
+	if (temp_directory[strlen(temp_directory) - 1] == '\\')
+		temp_directory[strlen(temp_directory) - 1] = 0x0;
 	const std::string driver_path = std::string(temp_directory) + "\\" + driver_name;
 	std::remove(driver_path.c_str());
 
@@ -55,6 +56,8 @@ void intel_driver::Unload(HANDLE device_handle)
 	char temp_directory[MAX_PATH] = { 0 };
 
 	const uint32_t get_temp_path_ret = GetTempPathA(sizeof(temp_directory), temp_directory);
+	if (temp_directory[strlen(temp_directory) - 1] == '\\')
+		temp_directory[strlen(temp_directory) - 1] = 0x0;
 	const std::string driver_path = std::string(temp_directory) + "\\" + driver_name;
 
 	std::remove(driver_path.c_str());

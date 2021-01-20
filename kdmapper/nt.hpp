@@ -12,6 +12,9 @@ namespace nt
 	constexpr auto SystemHandleInformation = 16;
 	constexpr auto SystemExtendedHandleInformation = 64;
 	
+	typedef NTSTATUS(*NtLoadDriver)(PUNICODE_STRING DriverServiceName);
+	typedef NTSTATUS(*NtUnloadDriver)(PUNICODE_STRING DriverServiceName);
+
 	typedef struct _SYSTEM_HANDLE
 	{
 		PVOID Object;

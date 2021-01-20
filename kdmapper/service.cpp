@@ -1,63 +1,153 @@
 #include "service.hpp"
 
+
+
 bool service::RegisterAndStart(const std::string& driver_path)
 {
 	const std::string driver_name = std::filesystem::path(driver_path).filename().string();
-	const SC_HANDLE sc_manager_handle = OpenSCManager(nullptr, nullptr, SC_MANAGER_ALL_ACCESS);
+	HKEY services,driver_service;
+	LPCTSTR servicesPath = "SYSTEM\\CurrentControlSet\\Services";
+	LSTATUS status = RegOpenKeyA(HKEY_LOCAL_MACHINE, servicesPath, &services);
+	if (status != ERROR_SUCCESS)
+	{
+		printf("[-] Can't open services base registry key\n");
+		return false;
+	}
 
-	if (!sc_manager_handle) {
-		printf("[-] Can't open service manager\n");
+	status = RegOpenKeyA(services, driver_name.c_str(), &driver_service);
+	if (status != ERROR_SUCCESS)
+	{
+		status = RegCreateKeyA(services, driver_name.c_str(), &driver_service);
+	}
+
+	if (status != ERROR_SUCCESS)
+	{
+		RegCloseKey(services);
+		RegCloseKey(driver_service);
+		printf("[-] Can't open service registry key\n");
+		return false;
+	}
+
+	status = RegSetKeyValueA(driver_service, NULL, "ImagePath", REG_EXPAND_SZ, ("\\??\\" + driver_path).c_str(), (DWORD)("\\??\\" + driver_path).size());
+	if (status != ERROR_SUCCESS)
+	{
+		RegCloseKey(services);
+		RegCloseKey(driver_service);
+		printf("[-] Can't create 'ImagePath' registry value\n");
+		return false;
+	}
+	DWORD data1 = 1;
+	DWORD data3 = 3;
+	status = RegSetKeyValueA(driver_service, NULL, "ErrorControl", REG_DWORD, &data1, sizeof(DWORD));
+	if (status != ERROR_SUCCESS)
+	{
+		RegCloseKey(services);
+		RegCloseKey(driver_service);
+		printf("[-] Can't create 'ErrorControl' registry value\n");
+		return false;
+	}
+
+	status = RegSetKeyValueA(driver_service, NULL, "Start", REG_DWORD, &data3, sizeof(DWORD));
+	if (status != ERROR_SUCCESS)
+	{
+		RegCloseKey(services);
+		RegCloseKey(driver_service);
+		printf("[-] Can't create 'Start' registry value\n");
+		return false;
+	}
+
+	status = RegSetKeyValueA(driver_service, NULL, "Type", REG_DWORD, &data1, sizeof(DWORD));
+	if (status != ERROR_SUCCESS)
+	{
+		RegCloseKey(services);
+		RegCloseKey(driver_service);
+		printf("[-] Can't create 'Type' registry value\n");
 		return false;
 	}
 	
-	//don't make sense if we already check \Device\Nal
+	RegCloseKey(services);
+	RegCloseKey(driver_service);
 
-	//Vanguard don't cause BSOD anymore
+	HMODULE ntdll = GetModuleHandleA("ntdll.dll");
+	if (ntdll == NULL) {
+		return false;
+	}
+		
 
-	SC_HANDLE service_handle = CreateService(sc_manager_handle, driver_name.c_str(), driver_name.c_str(), SERVICE_START | SERVICE_STOP | DELETE, SERVICE_KERNEL_DRIVER, SERVICE_DEMAND_START, SERVICE_ERROR_IGNORE, driver_path.c_str(), nullptr, nullptr, nullptr, nullptr, nullptr);
-
-	if (!service_handle)
+	HANDLE hToken;
+	if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &hToken))
 	{
-		service_handle = OpenService(sc_manager_handle, driver_name.c_str(), SERVICE_START);
-
-		if (!service_handle)
-		{
-			printf("[-] Can't create the vulnerable service, check your AV!!\n");
-			CloseServiceHandle(sc_manager_handle);
-			return false;
-		}
+		printf("[-] Can't get my process privileges token\n");
+		return FALSE;
 	}
 
-	const bool result = StartService(service_handle, 0, nullptr);
+	TOKEN_PRIVILEGES tp;
 
-	CloseServiceHandle(service_handle);
-	CloseServiceHandle(sc_manager_handle);
-	if (!result) {
-		printf("[-] Can't start the vulnerable service, check your AV!!\n");
+	LUID luid;
+	if (!LookupPrivilegeValue(NULL, "SeLoadDriverPrivilege", &luid))
+	{
+		printf("[-] Can't get my process privileges\n");
+		return FALSE;
 	}
-	return result;
+
+	tp.PrivilegeCount = 1;
+	tp.Privileges[0].Luid = luid;
+	tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+
+	if (!AdjustTokenPrivileges(hToken, FALSE, &tp, sizeof(TOKEN_PRIVILEGES), (PTOKEN_PRIVILEGES)NULL, (PDWORD)NULL))
+	{
+		printf("[-] Can't set SeLoadDriverPrivilege\n");
+		return false;
+	}
+	CloseHandle(hToken);
+
+	std::wstring wdriver_name(driver_name.begin(), driver_name.end());
+	wdriver_name = L"\\Registry\\Machine\\System\\CurrentControlSet\\Services\\" + wdriver_name;
+	UNICODE_STRING serviceStr;
+	RtlInitUnicodeString(&serviceStr, wdriver_name.c_str());
+	
+	auto NtLoadDriver = (nt::NtLoadDriver)GetProcAddress(ntdll, "NtLoadDriver");
+
+	NTSTATUS st = NtLoadDriver(&serviceStr);
+	printf("[+] NtLoadDriver Status 0x%lx\n", st);
+	return st == 0;
 }
 
 bool service::StopAndRemove(const std::string& driver_name)
 {
-	const SC_HANDLE sc_manager_handle = OpenSCManager(nullptr, nullptr, SC_MANAGER_CREATE_SERVICE);
-
-	if (!sc_manager_handle)
+	HMODULE ntdll = GetModuleHandleA("ntdll.dll");
+	if (ntdll == NULL)
 		return false;
 
-	const SC_HANDLE service_handle = OpenService(sc_manager_handle, driver_name.c_str(), SERVICE_STOP | DELETE);
+	std::wstring wdriver_name(driver_name.begin(), driver_name.end());
+	wdriver_name = L"\\Registry\\Machine\\System\\CurrentControlSet\\Services\\" + wdriver_name;
+	UNICODE_STRING serviceStr;
+	RtlInitUnicodeString(&serviceStr, wdriver_name.c_str());
 
-	if (!service_handle)
+	HKEY driver_service;
+	std::string servicesPath = "SYSTEM\\CurrentControlSet\\Services\\" + driver_name;
+	LSTATUS status = RegOpenKeyA(HKEY_LOCAL_MACHINE, servicesPath.c_str(), &driver_service);
+	if (status != ERROR_SUCCESS)
 	{
-		CloseServiceHandle(sc_manager_handle);
+		if (status == ERROR_FILE_NOT_FOUND) {
+			return true;
+		}
 		return false;
 	}
+	RegCloseKey(driver_service);
 
-	SERVICE_STATUS status = { 0 };
-	const bool result = ControlService(service_handle, SERVICE_CONTROL_STOP, &status) && DeleteService(service_handle);
+	auto NtUnloadDriver = (nt::NtUnloadDriver)GetProcAddress(ntdll, "NtUnloadDriver");
+	NTSTATUS st = NtUnloadDriver(&serviceStr);
+	printf("[+] NtUnloadDriver Status 0x%lx\n", st);
+	if (st != 0x0) {
+		printf("[-] Driver Unload Failed!!\n");
+	}
+	
 
-	CloseServiceHandle(service_handle);
-	CloseServiceHandle(sc_manager_handle);
-
-	return result;
+	status = RegDeleteKeyA(HKEY_LOCAL_MACHINE, servicesPath.c_str());
+	if (status != ERROR_SUCCESS)
+	{
+		return false;
+	}
+	return true;
 }

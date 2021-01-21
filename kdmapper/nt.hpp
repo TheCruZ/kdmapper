@@ -14,6 +14,7 @@ namespace nt
 	
 	typedef NTSTATUS(*NtLoadDriver)(PUNICODE_STRING DriverServiceName);
 	typedef NTSTATUS(*NtUnloadDriver)(PUNICODE_STRING DriverServiceName);
+	typedef NTSTATUS(*RtlAdjustPrivilege)(_In_ ULONG Privilege, _In_ BOOLEAN Enable, _In_ BOOLEAN Client, _Out_ PBOOLEAN WasEnabled);
 
 	typedef struct _SYSTEM_HANDLE
 	{

@@ -4,113 +4,62 @@
 
 bool service::RegisterAndStart(const std::string& driver_path)
 {
+	const static DWORD ServiceTypeKernel = 1;
 	const std::string driver_name = std::filesystem::path(driver_path).filename().string();
-	HKEY services,driver_service;
-	LPCTSTR servicesPath = "SYSTEM\\CurrentControlSet\\Services";
-	LSTATUS status = RegOpenKeyA(HKEY_LOCAL_MACHINE, servicesPath, &services);
+	const std::string servicesPath = "SYSTEM\\CurrentControlSet\\Services\\" + driver_name;
+	const std::string nPath = "\\??\\" + driver_path;
+
+	HKEY dservice;
+	LSTATUS status = RegCreateKey(HKEY_LOCAL_MACHINE, servicesPath.c_str(), &dservice); //Returns Ok if already exists
 	if (status != ERROR_SUCCESS)
 	{
-		printf("[-] Can't open services base registry key\n");
+		printf("[-] Can't create service key\n");
 		return false;
 	}
 
-	status = RegOpenKeyA(services, driver_name.c_str(), &driver_service);
+	status = RegSetKeyValue(dservice, NULL, "ImagePath", REG_EXPAND_SZ, nPath.c_str(), (DWORD)nPath.size());
 	if (status != ERROR_SUCCESS)
 	{
-		status = RegCreateKeyA(services, driver_name.c_str(), &driver_service);
-	}
-
-	if (status != ERROR_SUCCESS)
-	{
-		RegCloseKey(services);
-		RegCloseKey(driver_service);
-		printf("[-] Can't open service registry key\n");
-		return false;
-	}
-
-	status = RegSetKeyValueA(driver_service, NULL, "ImagePath", REG_EXPAND_SZ, ("\\??\\" + driver_path).c_str(), (DWORD)("\\??\\" + driver_path).size());
-	if (status != ERROR_SUCCESS)
-	{
-		RegCloseKey(services);
-		RegCloseKey(driver_service);
+		RegCloseKey(dservice);
 		printf("[-] Can't create 'ImagePath' registry value\n");
 		return false;
 	}
-	DWORD data1 = 1;
-	DWORD data3 = 3;
-	status = RegSetKeyValueA(driver_service, NULL, "ErrorControl", REG_DWORD, &data1, sizeof(DWORD));
+	
+	status = RegSetKeyValue(dservice, NULL, "Type", REG_DWORD, &ServiceTypeKernel, sizeof(DWORD));
 	if (status != ERROR_SUCCESS)
 	{
-		RegCloseKey(services);
-		RegCloseKey(driver_service);
-		printf("[-] Can't create 'ErrorControl' registry value\n");
-		return false;
-	}
-
-	status = RegSetKeyValueA(driver_service, NULL, "Start", REG_DWORD, &data3, sizeof(DWORD));
-	if (status != ERROR_SUCCESS)
-	{
-		RegCloseKey(services);
-		RegCloseKey(driver_service);
-		printf("[-] Can't create 'Start' registry value\n");
-		return false;
-	}
-
-	status = RegSetKeyValueA(driver_service, NULL, "Type", REG_DWORD, &data1, sizeof(DWORD));
-	if (status != ERROR_SUCCESS)
-	{
-		RegCloseKey(services);
-		RegCloseKey(driver_service);
+		RegCloseKey(dservice);
 		printf("[-] Can't create 'Type' registry value\n");
 		return false;
 	}
 	
-	RegCloseKey(services);
-	RegCloseKey(driver_service);
+	RegCloseKey(dservice);
 
-	HMODULE ntdll = GetModuleHandleA("ntdll.dll");
+	HMODULE ntdll = GetModuleHandle("ntdll.dll");
 	if (ntdll == NULL) {
 		return false;
 	}
-		
 
-	HANDLE hToken;
-	if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &hToken))
+	auto RtlAdjustPrivilege = (nt::RtlAdjustPrivilege)GetProcAddress(ntdll, "RtlAdjustPrivilege");
+	auto NtLoadDriver = (nt::NtLoadDriver)GetProcAddress(ntdll, "NtLoadDriver");
+
+	ULONG SE_LOAD_DRIVER_PRIVILEGE = 10UL;
+	BOOLEAN SeLoadDriverWasEnabled;
+	NTSTATUS Status = RtlAdjustPrivilege(SE_LOAD_DRIVER_PRIVILEGE, TRUE, FALSE, &SeLoadDriverWasEnabled);
+	if (!NT_SUCCESS(Status))
 	{
-		printf("[-] Can't get my process privileges token\n");
-		return FALSE;
+		printf("Fatal error: failed to acquire SE_LOAD_DRIVER_PRIVILEGE. Make sure you are running as administrator.\n");
+		return Status;
 	}
-
-	TOKEN_PRIVILEGES tp;
-
-	LUID luid;
-	if (!LookupPrivilegeValue(NULL, "SeLoadDriverPrivilege", &luid))
-	{
-		printf("[-] Can't get my process privileges\n");
-		return FALSE;
-	}
-
-	tp.PrivilegeCount = 1;
-	tp.Privileges[0].Luid = luid;
-	tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
-
-	if (!AdjustTokenPrivileges(hToken, FALSE, &tp, sizeof(TOKEN_PRIVILEGES), (PTOKEN_PRIVILEGES)NULL, (PDWORD)NULL))
-	{
-		printf("[-] Can't set SeLoadDriverPrivilege\n");
-		return false;
-	}
-	CloseHandle(hToken);
 
 	std::wstring wdriver_name(driver_name.begin(), driver_name.end());
 	wdriver_name = L"\\Registry\\Machine\\System\\CurrentControlSet\\Services\\" + wdriver_name;
 	UNICODE_STRING serviceStr;
 	RtlInitUnicodeString(&serviceStr, wdriver_name.c_str());
 	
-	auto NtLoadDriver = (nt::NtLoadDriver)GetProcAddress(ntdll, "NtLoadDriver");
-
-	NTSTATUS st = NtLoadDriver(&serviceStr);
-	printf("[+] NtLoadDriver Status 0x%lx\n", st);
-	return st == 0;
+	Status = NtLoadDriver(&serviceStr);
+	printf("[+] NtLoadDriver Status 0x%lx\n", Status);
+	return NT_SUCCESS(Status);
 }
 
 bool service::StopAndRemove(const std::string& driver_name)
@@ -126,7 +75,7 @@ bool service::StopAndRemove(const std::string& driver_name)
 
 	HKEY driver_service;
 	std::string servicesPath = "SYSTEM\\CurrentControlSet\\Services\\" + driver_name;
-	LSTATUS status = RegOpenKeyA(HKEY_LOCAL_MACHINE, servicesPath.c_str(), &driver_service);
+	LSTATUS status = RegOpenKey(HKEY_LOCAL_MACHINE, servicesPath.c_str(), &driver_service);
 	if (status != ERROR_SUCCESS)
 	{
 		if (status == ERROR_FILE_NOT_FOUND) {
@@ -144,7 +93,7 @@ bool service::StopAndRemove(const std::string& driver_name)
 	}
 	
 
-	status = RegDeleteKeyA(HKEY_LOCAL_MACHINE, servicesPath.c_str());
+	status = RegDeleteKey(HKEY_LOCAL_MACHINE, servicesPath.c_str());
 	if (status != ERROR_SUCCESS)
 	{
 		return false;

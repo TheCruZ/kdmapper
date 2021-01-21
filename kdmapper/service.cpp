@@ -49,7 +49,7 @@ bool service::RegisterAndStart(const std::string& driver_path)
 	if (!NT_SUCCESS(Status))
 	{
 		printf("Fatal error: failed to acquire SE_LOAD_DRIVER_PRIVILEGE. Make sure you are running as administrator.\n");
-		return Status;
+		return false;
 	}
 
 	std::wstring wdriver_name(driver_name.begin(), driver_name.end());

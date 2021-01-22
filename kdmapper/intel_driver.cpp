@@ -541,14 +541,6 @@ bool intel_driver::ClearPiDDBCacheTable(HANDLE device_handle) { //PiDDBCacheTabl
 	}
 
 	printf("[+] Found Table Entry = %p\n", pFoundEntry);
-	//printf("[+] Prev Table Entry = %p\n", prev);
-	//printf("[+] Next Table Entry = %p\n", next);
-
-	//uintptr_t f1;
-	//ReadMemory(device_handle, (uintptr_t)prev + (offsetof(struct _LIST_ENTRY, Flink)), &f1, sizeof(_LIST_ENTRY*));
-	//printf("[+] Old prev.Flink = %llx\n", f1);
-	//ReadMemory(device_handle, (uintptr_t)next + (offsetof(struct _LIST_ENTRY, Blink)), &f1, sizeof(_LIST_ENTRY*));
-	//printf("[+] Old next.Blink = %llx\n", f1);
 
 	if (!WriteMemory(device_handle, (uintptr_t)prev + (offsetof(struct _LIST_ENTRY, Flink)), &next, sizeof(_LIST_ENTRY*))) {
 		std::cout << "[-] Can't set next entry" << std::endl;
@@ -560,22 +552,6 @@ bool intel_driver::ClearPiDDBCacheTable(HANDLE device_handle) { //PiDDBCacheTabl
 		ExReleaseResourceLite(device_handle, PiDDBLock);
 		return false;
 	}
-
-	if (!ReadMemory(device_handle, (uintptr_t)pFoundEntry + (offsetof(struct _PiDDBCacheEntry, List.Blink)), &prev, sizeof(_LIST_ENTRY*))) {
-		std::cout << "[-] Can't get prev entry" << std::endl;
-		ExReleaseResourceLite(device_handle, PiDDBLock);
-		return false;
-	}
-	if (!ReadMemory(device_handle, (uintptr_t)pFoundEntry + (offsetof(struct _PiDDBCacheEntry, List.Flink)), &next, sizeof(_LIST_ENTRY*))) {
-		std::cout << "[-] Can't get next entry" << std::endl;
-		ExReleaseResourceLite(device_handle, PiDDBLock);
-		return false;
-	}
-
-	//ReadMemory(device_handle, (uintptr_t)prev + (offsetof(struct _LIST_ENTRY, Flink)), &f1, sizeof(_LIST_ENTRY*));
-	//printf("[+] New prev.Flink = %llx\n", f1);
-	//ReadMemory(device_handle, (uintptr_t)next + (offsetof(struct _LIST_ENTRY, Blink)), &f1, sizeof(_LIST_ENTRY*));
-	//printf("[+] New next.Blink = %llx\n", f1);
 
 	// then delete the element from the avl table
 	if (!RtlDeleteElementGenericTableAvl(device_handle, PiDDBCacheTable, pFoundEntry)) {

@@ -18,6 +18,7 @@ Improvements:
 	Implemented NtLoadDriver and NtUnloadDriver for less traces
 	Prevent load if \Device\Nal exists (Prevents BSOD)
 	Automatic clear PiDDBCacheTable
+	Header section skipped while copying driver to kernel
 	
 Requirements:
 

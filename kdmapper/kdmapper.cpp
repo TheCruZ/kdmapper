@@ -29,7 +29,10 @@ uint64_t kdmapper::MapDriver(HANDLE iqvw64e_device_handle, const std::string& dr
 	void* local_image_base = VirtualAlloc(nullptr, image_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 	if (!local_image_base)
 		return 0;
-	uint64_t kernel_image_base = intel_driver::AllocatePool(iqvw64e_device_handle, nt::POOL_TYPE::NonPagedPool, image_size);
+
+	DWORD TotalVirtualHeaderSize = (IMAGE_FIRST_SECTION(nt_headers))->VirtualAddress;
+
+	uint64_t kernel_image_base = intel_driver::AllocatePool(iqvw64e_device_handle, nt::POOL_TYPE::NonPagedPool, image_size - TotalVirtualHeaderSize);
 
 	do
 	{
@@ -48,12 +51,17 @@ uint64_t kdmapper::MapDriver(HANDLE iqvw64e_device_handle, const std::string& dr
 		// Copy image sections
 
 		const PIMAGE_SECTION_HEADER current_image_section = IMAGE_FIRST_SECTION(nt_headers);
-
+		
 		for (auto i = 0; i < nt_headers->FileHeader.NumberOfSections; ++i)
 		{
 			auto local_section = reinterpret_cast<void*>(reinterpret_cast<uint64_t>(local_image_base) + current_image_section[i].VirtualAddress);
 			memcpy(local_section, reinterpret_cast<void*>(reinterpret_cast<uint64_t>(raw_image.data()) + current_image_section[i].PointerToRawData), current_image_section[i].SizeOfRawData);
 		}
+		
+		uint64_t realBase = kernel_image_base;
+		kernel_image_base -= TotalVirtualHeaderSize;
+
+		std::cout << "[+] Skipped 0x" << std::hex << TotalVirtualHeaderSize << " bytes of PE Header" << std::endl;
 
 		// Resolve relocs and imports
 
@@ -62,18 +70,18 @@ uint64_t kdmapper::MapDriver(HANDLE iqvw64e_device_handle, const std::string& dr
 		if (!ResolveImports(iqvw64e_device_handle, portable_executable::GetImports(local_image_base)))
 		{
 			std::cout << "[-] Failed to resolve imports" << std::endl;
+			kernel_image_base = realBase;
 			break;
 		}
 
 		// Write fixed image to kernel
 
-		if (!intel_driver::WriteMemory(iqvw64e_device_handle, kernel_image_base, local_image_base, image_size))
+		if (!intel_driver::WriteMemory(iqvw64e_device_handle, realBase, (PVOID)((uintptr_t)local_image_base + TotalVirtualHeaderSize), image_size - TotalVirtualHeaderSize))
 		{
 			std::cout << "[-] Failed to write local image to remote image" << std::endl;
+			kernel_image_base = realBase;
 			break;
 		}
-
-		
 
 		// Call driver entry point
 
@@ -86,17 +94,14 @@ uint64_t kdmapper::MapDriver(HANDLE iqvw64e_device_handle, const std::string& dr
 		if (!intel_driver::CallKernelFunction(iqvw64e_device_handle, &status, address_of_entry_point))
 		{
 			std::cout << "[-] Failed to call driver entry" << std::endl;
+			kernel_image_base = realBase;
 			break;
 		}
 
 		std::cout << "[+] DriverEntry returned 0x" << std::hex << std::setw(8) << std::setfill('0') << std::uppercase << status << std::nouppercase << std::dec << std::endl;
 		
 		VirtualFree(local_image_base, 0, MEM_RELEASE);
-
-		// Erase PE headers
-
-		intel_driver::SetMemory(iqvw64e_device_handle, kernel_image_base, 0, nt_headers->OptionalHeader.SizeOfHeaders);
-		return kernel_image_base;
+		return realBase;
 
 	} while (false);
 

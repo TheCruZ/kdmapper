@@ -14,6 +14,7 @@ namespace intel_driver
 {
 	constexpr auto driver_name = "iqvw64e.sys";
 	constexpr uint32_t ioctl1 = 0x80862007;
+	constexpr DWORD iqvw64e_timestamp = 0x5284EAC3;
 
 	typedef struct _COPY_MEMORY_BUFFER_INFO
 	{
@@ -61,6 +62,47 @@ namespace intel_driver
 		uint64_t reserved3;
 		uint32_t number_of_bytes;
 	}UNMAP_IO_SPACE_BUFFER_INFO, * PUNMAP_IO_SPACE_BUFFER_INFO;
+
+	typedef struct _RTL_BALANCED_LINKS {
+		struct _RTL_BALANCED_LINKS* Parent;
+		struct _RTL_BALANCED_LINKS* LeftChild;
+		struct _RTL_BALANCED_LINKS* RightChild;
+		CHAR Balance;
+		UCHAR Reserved[3];
+	} RTL_BALANCED_LINKS;
+	typedef RTL_BALANCED_LINKS* PRTL_BALANCED_LINKS;
+
+	typedef struct _RTL_AVL_TABLE {
+		RTL_BALANCED_LINKS BalancedRoot;
+		PVOID OrderedPointer;
+		ULONG WhichOrderedElement;
+		ULONG NumberGenericTableElements;
+		ULONG DepthOfTree;
+		PVOID RestartKey;
+		ULONG DeleteCount;
+		PVOID CompareRoutine;
+		PVOID AllocateRoutine;
+		PVOID FreeRoutine;
+		PVOID TableContext;
+	} RTL_AVL_TABLE;
+	typedef RTL_AVL_TABLE* PRTL_AVL_TABLE;
+
+	typedef struct _PiDDBCacheEntry
+	{
+		LIST_ENTRY		List;
+		UNICODE_STRING	DriverName;
+		ULONG			TimeDateStamp;
+		NTSTATUS		LoadStatus;
+		char			_0x0028[16]; // data from the shim engine, or uninitialized memory for custom drivers
+	} PiDDBCacheEntry, * NPiDDBCacheEntry;
+
+	bool ClearPiDDBCacheTable(HANDLE device_handle);
+	bool ExAcquireResourceExclusiveLite(HANDLE device_handle, PVOID Resource, BOOLEAN wait);
+	bool ExReleaseResourceLite(HANDLE device_handle, PVOID Resource);
+	BOOLEAN RtlDeleteElementGenericTableAvl(HANDLE device_handle, PVOID Table, PVOID Buffer);
+	PiDDBCacheEntry* LookupEntry(HANDLE device_handle, PRTL_AVL_TABLE PiDDBCacheTable, ULONG timestamp);
+	PVOID ResolveRelativeAddress(HANDLE device_handle, _In_ PVOID Instruction, _In_ ULONG OffsetOffset, _In_ ULONG InstructionSize);
+	void LocatePidTableInfo(BYTE* PAGESectionData, ULONG sectionSize);
 
 	bool IsRunning();
 	HANDLE Load();

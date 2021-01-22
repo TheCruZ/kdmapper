@@ -66,3 +66,35 @@ uint64_t utils::GetKernelModuleAddress(const std::string& module_name)
 	VirtualFree(buffer, 0, MEM_RELEASE);
 	return 0;
 }
+
+BOOLEAN utils::bDataCompare(const BYTE* pData, const BYTE* bMask, const char* szMask) {
+	for (; *szMask; ++szMask, ++pData, ++bMask)
+		if (*szMask == 'x' && *pData != *bMask)
+			return 0;
+	return (*szMask) == 0;
+}
+
+uintptr_t utils::FindPattern(uintptr_t dwAddress, uintptr_t dwLen, BYTE* bMask, char* szMask) {
+	size_t max_len = dwLen - strlen(szMask);
+	for (uintptr_t i = 0; i < max_len; i++)
+		if (bDataCompare((BYTE*)(dwAddress + i), bMask, szMask))
+			return (uintptr_t)(dwAddress + i);
+	return 0;
+}
+
+PVOID utils::FindSection(char* sectionName, uintptr_t modulePtr, PULONG size) {
+	size_t namelength = strlen(sectionName);
+	PIMAGE_NT_HEADERS headers = (PIMAGE_NT_HEADERS)(modulePtr + ((PIMAGE_DOS_HEADER)modulePtr)->e_lfanew);
+	PIMAGE_SECTION_HEADER sections = IMAGE_FIRST_SECTION(headers);
+	for (DWORD i = 0; i < headers->FileHeader.NumberOfSections; ++i) {
+		PIMAGE_SECTION_HEADER section = &sections[i];
+		if (memcmp(section->Name, sectionName, namelength) == 0 &&
+			namelength == strlen((char*)section->Name)) {
+			if (size) {
+				*size = section->Misc.VirtualSize;
+			}
+			return (PVOID)(modulePtr + section->VirtualAddress);
+		}
+	}
+	return 0;
+}

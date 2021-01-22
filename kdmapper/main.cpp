@@ -32,6 +32,12 @@ int main(const int argc, char** argv)
 		return -1;
 	}
 
+	if (!intel_driver::ClearPiDDBCacheTable(iqvw64e_device_handle)) {
+		std::cout << "[-] Failed to ClearPiDDBCacheTable" << std::endl;
+		intel_driver::Unload(iqvw64e_device_handle);
+		return -1;
+	}
+
 	if (!kdmapper::MapDriver(iqvw64e_device_handle, driver_path))
 	{
 		std::cout << "[-] Failed to map " << driver_path << std::endl;

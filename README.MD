@@ -10,11 +10,15 @@ KDMapper is a simple tool that exploits iqvw64e.sys Intel driver to manually map
 
 Fixups:
 
-    Prevent load if \Device\Nal exists (Prevents BSOD)
     Hook "NtQueryInformationAtom" which exists in all windows versions
-    Implemented NtLoadDriver and NtUnloadDriver for less traces
     Fixed unable to load /GS- compiled drivers
 
+Improvements:
+
+	Implemented NtLoadDriver and NtUnloadDriver for less traces
+	Prevent load if \Device\Nal exists (Prevents BSOD)
+	Automatic clear PiDDBCacheTable
+	
 Requirements:
 
     Set Custom Driver Entry Point

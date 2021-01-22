@@ -1,5 +1,8 @@
 #include "intel_driver.hpp"
 
+uintptr_t PiDDBLockPtr;
+uintptr_t PiDDBCacheTablePtr;
+
 bool intel_driver::IsRunning()
 {
 	const HANDLE file_handle = CreateFileW(L"\\\\.\\Nal", FILE_ANY_ACCESS, 0, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
@@ -50,7 +53,10 @@ void intel_driver::Unload(HANDLE device_handle)
 
 	if (device_handle && device_handle != INVALID_HANDLE_VALUE) {
 		if (!ClearMmUnloadedDrivers(device_handle)) {
-			std::cout << "[-] Failed to clear MmUnloadedDrivers" << std::endl;
+			std::cout << "[!] Failed to clear MmUnloadedDrivers, Restart the computer to prevent bans" << std::endl;
+		}
+		else {
+			std::cout << "[+] MmUnloadedDrivers Cleaned" << std::endl;
 		}
 		CloseHandle(device_handle);
 	}
@@ -363,6 +369,225 @@ bool intel_driver::ClearMmUnloadedDrivers(HANDLE device_handle)
 		std::cout << "[!] Failed to write driver name length" << std::endl;
 		return false;
 	}
+
+	return true;
+}
+
+void intel_driver::LocatePidTableInfo(BYTE* PAGESectionData, ULONG sectionSize) {
+	BYTE PiDDBLockPattern[] = { 0x48, 0x8D, 0x0D, 0x00, 0x00, 0x00, 0x00, 0xE8, 0x00, 0x00, 0x00, 0x00, 0x4C, 0x8B, 0x8C }; //48 8D 0D ? ? ? ? E8 ? ? ? ? 4C 8B 8C
+	char PiDDBLockMask[] = { 'x', 'x', 'x', '?', '?', '?', '?', 'x', '?', '?', '?', '?', 'x', 'x', 'x', 0x00 };
+	BYTE PiDDBCacheTablePattern[] = { 0x66, 0x03, 0xD2, 0x48, 0x8D, 0x0D };
+	char PiDDBCacheTableMask[] = { 'x', 'x', 'x', 'x', 'x', 'x', 0x00 };
+
+
+	PiDDBLockPtr = utils::FindPattern((uintptr_t)PAGESectionData, sectionSize, PiDDBLockPattern, PiDDBLockMask);
+	PiDDBCacheTablePtr = utils::FindPattern((uintptr_t)PAGESectionData, sectionSize, PiDDBCacheTablePattern, PiDDBCacheTableMask);
+}
+
+PVOID intel_driver::ResolveRelativeAddress(HANDLE device_handle, _In_ PVOID Instruction, _In_ ULONG OffsetOffset, _In_ ULONG InstructionSize) {
+	ULONG_PTR Instr = (ULONG_PTR)Instruction;
+	LONG RipOffset = 0;
+	if (!ReadMemory(device_handle, Instr + OffsetOffset, &RipOffset, sizeof(LONG))) {
+		return nullptr;
+	}
+	PVOID ResolvedAddr = (PVOID)(Instr + InstructionSize + RipOffset);
+	return ResolvedAddr;
+}
+
+bool intel_driver::ExAcquireResourceExclusiveLite(HANDLE device_handle, PVOID Resource, BOOLEAN wait)
+{
+	if (!Resource)
+		return 0;
+
+	static uint64_t kernel_ExAcquireResourceExclusiveLite = GetKernelModuleExport(device_handle, utils::GetKernelModuleAddress("ntoskrnl.exe"), "ExAcquireResourceExclusiveLite");
+
+	if (!kernel_ExAcquireResourceExclusiveLite) {
+		std::cout << "[!] Failed to find ExAcquireResourceExclusiveLite" << std::endl;
+		return 0;
+	}
+
+	BOOLEAN out;
+
+	return (CallKernelFunction(device_handle, &out, kernel_ExAcquireResourceExclusiveLite, Resource, wait) && out);
+}
+
+bool intel_driver::ExReleaseResourceLite(HANDLE device_handle, PVOID Resource)
+{
+	if (!Resource)
+		return false;
+
+	static uint64_t kernel_ExReleaseResourceLite = GetKernelModuleExport(device_handle, utils::GetKernelModuleAddress("ntoskrnl.exe"), "ExReleaseResourceLite");
+
+	if (!kernel_ExReleaseResourceLite) {
+		std::cout << "[!] Failed to find ExReleaseResourceLite" << std::endl;
+		return false;
+	}
+
+	return CallKernelFunction<void>(device_handle, nullptr, kernel_ExReleaseResourceLite, Resource);
+}
+
+BOOLEAN intel_driver::RtlDeleteElementGenericTableAvl(HANDLE device_handle, PVOID Table, PVOID Buffer)
+{
+	if (!Table)
+		return false;
+
+	static uint64_t kernel_RtlDeleteElementGenericTableAvl = GetKernelModuleExport(device_handle, utils::GetKernelModuleAddress("ntoskrnl.exe"), "RtlDeleteElementGenericTableAvl");
+
+	if (!kernel_RtlDeleteElementGenericTableAvl) {
+		std::cout << "[!] Failed to find RtlDeleteElementGenericTableAvl" << std::endl;
+		return false;
+	}
+
+	BOOLEAN out;
+
+	return (CallKernelFunction(device_handle, &out, kernel_RtlDeleteElementGenericTableAvl, Table, Buffer) && out);
+}
+
+intel_driver::PiDDBCacheEntry* intel_driver::LookupEntry(HANDLE device_handle, PRTL_AVL_TABLE PiDDBCacheTable, ULONG timestamp) {
+	PiDDBCacheEntry* firstEntry;
+	if (!ReadMemory(device_handle, (uintptr_t)PiDDBCacheTable + (offsetof(struct _RTL_AVL_TABLE, BalancedRoot.RightChild)), &firstEntry, sizeof(_RTL_BALANCED_LINKS*))) {
+		return nullptr;
+	}
+	
+	(*(uintptr_t*)&firstEntry) += sizeof(RTL_BALANCED_LINKS);
+
+	PiDDBCacheEntry* cache_entry;
+	if (!ReadMemory(device_handle, (uintptr_t)firstEntry + (offsetof(struct _PiDDBCacheEntry, List.Flink)), &cache_entry, sizeof(_LIST_ENTRY*))) {
+		return nullptr;
+	}
+	
+	while (TRUE) {
+		ULONG itemTimeDateStamp = 0;
+		if (!ReadMemory(device_handle, (uintptr_t)cache_entry + (offsetof(struct _PiDDBCacheEntry, TimeDateStamp)), &itemTimeDateStamp, sizeof(ULONG))) {
+			return nullptr;
+		}
+		if (itemTimeDateStamp == timestamp) {
+			printf("[+] PiDDBCacheTable result -> TimeStamp: %x\n", itemTimeDateStamp);
+			return cache_entry;
+		}
+		if ((uintptr_t)cache_entry == (uintptr_t)firstEntry) {
+			break;
+		}
+		if (!ReadMemory(device_handle, (uintptr_t)cache_entry + (offsetof(struct _PiDDBCacheEntry, List.Flink)), &cache_entry, sizeof(_LIST_ENTRY*))) {
+			return nullptr;
+		}
+	}
+	return nullptr;
+}
+
+
+bool intel_driver::ClearPiDDBCacheTable(HANDLE device_handle) { //PiDDBCacheTable added on LoadDriver
+	
+	uint64_t ntoskrnl = utils::GetKernelModuleAddress("ntoskrnl.exe");
+	BYTE headers[0x1000];
+	if (!ReadMemory(device_handle, ntoskrnl, headers, 0x1000)) {
+		std::cout << "[-] Can't read ntoskrnl headers" << std::endl;
+		return false;
+	}
+	ULONG sectionSize = 0;
+	PVOID sectionPAGE = utils::FindSection((char*)"PAGE", (uintptr_t)headers, &sectionSize);
+	if (!sectionPAGE) {
+		std::cout << "[-] Can't find ntoskrnl PAGE section" << std::endl;
+		return false;
+	}
+	sectionPAGE = (PVOID)((uintptr_t)sectionPAGE - (uintptr_t)headers + ntoskrnl);
+	
+	BYTE* PAGESectionData = new BYTE[sectionSize];
+	ReadMemory(device_handle, (uintptr_t)sectionPAGE, PAGESectionData, sectionSize);
+
+	LocatePidTableInfo(PAGESectionData, sectionSize);
+	if (PiDDBLockPtr == NULL || PiDDBCacheTablePtr == NULL) {
+		std::cout << "[-] Warning no PiDDBCacheTable Found" << std::endl;
+		return false;
+	}
+	PiDDBLockPtr = (uintptr_t)sectionPAGE + PiDDBLockPtr - (uintptr_t)PAGESectionData;
+	PiDDBCacheTablePtr = (uintptr_t)sectionPAGE + PiDDBCacheTablePtr - (uintptr_t)PAGESectionData;
+
+	printf("[+] PiDDBLock Ptr %llx\n", PiDDBLockPtr);
+	printf("[+] PiDDBCacheTable Ptr %llx\n", PiDDBCacheTablePtr);
+
+	PVOID PiDDBLock = ResolveRelativeAddress(device_handle, (PVOID)PiDDBLockPtr, 3, 7);
+	PRTL_AVL_TABLE PiDDBCacheTable = (PRTL_AVL_TABLE)ResolveRelativeAddress(device_handle, (PVOID)PiDDBCacheTablePtr, 6, 10);
+
+
+	SetMemory(device_handle, (uintptr_t)PiDDBCacheTable + (offsetof(struct _RTL_AVL_TABLE, TableContext)), 1, sizeof(PVOID));
+
+	if (!ExAcquireResourceExclusiveLite(device_handle, PiDDBLock, true)) {
+		std::cout << "[-] Can't lock PiDDBCacheTable" << std::endl;
+		return false;
+	}
+	std::cout << "[+] PiDDBLock Locked" << std::endl;
+
+	// search our entry in the table
+	PiDDBCacheEntry* pFoundEntry = (PiDDBCacheEntry*)LookupEntry(device_handle,PiDDBCacheTable, iqvw64e_timestamp);
+	if (pFoundEntry == nullptr) {
+		std::cout << "[-] Not found in cache" << std::endl;
+		ExReleaseResourceLite(device_handle, PiDDBLock);
+		return false;
+	}
+
+	// first, unlink from the list
+	PLIST_ENTRY prev;
+	if (!ReadMemory(device_handle, (uintptr_t)pFoundEntry + (offsetof(struct _PiDDBCacheEntry, List.Blink)), &prev, sizeof(_LIST_ENTRY*))) {
+		std::cout << "[-] Can't get prev entry" << std::endl;
+		ExReleaseResourceLite(device_handle, PiDDBLock);
+		return false;
+	}
+	PLIST_ENTRY next;
+	if (!ReadMemory(device_handle, (uintptr_t)pFoundEntry + (offsetof(struct _PiDDBCacheEntry, List.Flink)), &next, sizeof(_LIST_ENTRY*))) {
+		std::cout << "[-] Can't get next entry" << std::endl;
+		ExReleaseResourceLite(device_handle, PiDDBLock);
+		return false;
+	}
+
+	printf("[+] Found Table Entry = %p\n", pFoundEntry);
+	//printf("[+] Prev Table Entry = %p\n", prev);
+	//printf("[+] Next Table Entry = %p\n", next);
+
+	//uintptr_t f1;
+	//ReadMemory(device_handle, (uintptr_t)prev + (offsetof(struct _LIST_ENTRY, Flink)), &f1, sizeof(_LIST_ENTRY*));
+	//printf("[+] Old prev.Flink = %llx\n", f1);
+	//ReadMemory(device_handle, (uintptr_t)next + (offsetof(struct _LIST_ENTRY, Blink)), &f1, sizeof(_LIST_ENTRY*));
+	//printf("[+] Old next.Blink = %llx\n", f1);
+
+	if (!WriteMemory(device_handle, (uintptr_t)prev + (offsetof(struct _LIST_ENTRY, Flink)), &next, sizeof(_LIST_ENTRY*))) {
+		std::cout << "[-] Can't set next entry" << std::endl;
+		ExReleaseResourceLite(device_handle, PiDDBLock);
+		return false;
+	}
+	if (!WriteMemory(device_handle, (uintptr_t)next + (offsetof(struct _LIST_ENTRY, Blink)), &prev, sizeof(_LIST_ENTRY*))) {
+		std::cout << "[-] Can't set prev entry" << std::endl;
+		ExReleaseResourceLite(device_handle, PiDDBLock);
+		return false;
+	}
+
+	if (!ReadMemory(device_handle, (uintptr_t)pFoundEntry + (offsetof(struct _PiDDBCacheEntry, List.Blink)), &prev, sizeof(_LIST_ENTRY*))) {
+		std::cout << "[-] Can't get prev entry" << std::endl;
+		ExReleaseResourceLite(device_handle, PiDDBLock);
+		return false;
+	}
+	if (!ReadMemory(device_handle, (uintptr_t)pFoundEntry + (offsetof(struct _PiDDBCacheEntry, List.Flink)), &next, sizeof(_LIST_ENTRY*))) {
+		std::cout << "[-] Can't get next entry" << std::endl;
+		ExReleaseResourceLite(device_handle, PiDDBLock);
+		return false;
+	}
+
+	//ReadMemory(device_handle, (uintptr_t)prev + (offsetof(struct _LIST_ENTRY, Flink)), &f1, sizeof(_LIST_ENTRY*));
+	//printf("[+] New prev.Flink = %llx\n", f1);
+	//ReadMemory(device_handle, (uintptr_t)next + (offsetof(struct _LIST_ENTRY, Blink)), &f1, sizeof(_LIST_ENTRY*));
+	//printf("[+] New next.Blink = %llx\n", f1);
+
+	// then delete the element from the avl table
+	if (!RtlDeleteElementGenericTableAvl(device_handle, PiDDBCacheTable, pFoundEntry)) {
+		std::cout << "[-] Can't delete from PiDDBCacheTable" << std::endl;
+		ExReleaseResourceLite(device_handle, PiDDBLock);
+		return false;
+	}
+
+	// release the ddb resource lock
+	ExReleaseResourceLite(device_handle, PiDDBLock);
+
+	std::cout << "[+] PiDDBCacheTable Cleaned" << std::endl;
 
 	return true;
 }

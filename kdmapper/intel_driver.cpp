@@ -203,7 +203,7 @@ uint64_t intel_driver::AllocatePool(HANDLE device_handle, nt::POOL_TYPE pool_typ
 	if (!size)
 		return 0;
 
-	static uint64_t kernel_ExAllocatePool = GetKernelModuleExport(device_handle, utils::GetKernelModuleAddress("ntoskrnl.exe"), "ExAllocatePool");
+	static uint64_t kernel_ExAllocatePool = GetKernelModuleExport(device_handle, utils::GetKernelModuleAddress("ntoskrnl.exe"), "ExAllocatePoolWithTag");
 
 	if (!kernel_ExAllocatePool)
 	{
@@ -213,7 +213,7 @@ uint64_t intel_driver::AllocatePool(HANDLE device_handle, nt::POOL_TYPE pool_typ
 
 	uint64_t allocated_pool = 0;
 
-	if (!CallKernelFunction(device_handle, &allocated_pool, kernel_ExAllocatePool, pool_type, size))
+	if (!CallKernelFunction(device_handle, &allocated_pool, kernel_ExAllocatePool, pool_type, size, 'erhT'))
 		return 0;
 
 	return allocated_pool;

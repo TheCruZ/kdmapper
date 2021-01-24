@@ -12,7 +12,7 @@
 
 namespace intel_driver
 {
-	constexpr auto driver_name = "iqvw64e.sys";
+	extern char driver_name[100]; //"iqvw64e.sys"
 	constexpr uint32_t ioctl1 = 0x80862007;
 	constexpr DWORD iqvw64e_timestamp = 0x5284EAC3;
 

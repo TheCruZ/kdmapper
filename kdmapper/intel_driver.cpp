@@ -1,5 +1,6 @@
 #include "intel_driver.hpp"
 
+char intel_driver::driver_name[100] = {};
 uintptr_t PiDDBLockPtr;
 uintptr_t PiDDBCacheTablePtr;
 
@@ -16,6 +17,15 @@ bool intel_driver::IsRunning()
 
 HANDLE intel_driver::Load()
 {
+	//Randomize name for log in registry keys, usn jornal and other shits
+	memset(intel_driver::driver_name, 0, sizeof(intel_driver::driver_name));
+	static const char alphanum[] =
+		"abcdefghijklmnopqrstuvwxyz"
+		"ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+	int len = rand() % 20 + 10;
+	for (int i = 0; i < len; ++i)
+		intel_driver::driver_name[i] = alphanum[rand() % (sizeof(alphanum) - 1)];
+
 	std::cout << "[<] Loading vulnerable driver" << std::endl;
 
 	char temp_directory[MAX_PATH] = { 0 };

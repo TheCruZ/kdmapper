@@ -2,6 +2,7 @@
 
 int main(const int argc, char** argv)
 {
+	srand((unsigned)time(NULL) * GetCurrentThreadId());
 	if (argc != 2 || std::filesystem::path(argv[1]).extension().string().compare(".sys"))
 	{
 		std::cout << "[-] Incorrect usage" << std::endl;

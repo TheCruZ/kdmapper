@@ -80,6 +80,23 @@ void intel_driver::Unload(HANDLE device_handle)
 		temp_directory[strlen(temp_directory) - 1] = 0x0;
 	const std::string driver_path = std::string(temp_directory) + "\\" + driver_name;
 
+	//Destroy disk information before unlink from disk to prevent any recover of the file
+	std::ofstream file_ofstream(driver_path.c_str(), std::ios_base::out | std::ios_base::binary);
+	BYTE * randomData = new BYTE[sizeof(intel_driver_resource::driver)];
+	for (size_t i = 0; i < sizeof(intel_driver_resource::driver); i++) {
+		randomData[i] = (BYTE)(rand() % 255);
+	}
+	if (!file_ofstream.write((char*)randomData, sizeof(intel_driver_resource::driver)))
+	{
+		std::cout << "[!] Error dumping shit inside the disk" << std::endl;
+	}
+	else {
+		std::cout << "[+] Vul driver data destroyed before unlink" << std::endl;
+	}
+	file_ofstream.close();
+	delete[] randomData;
+
+	//unlink the file
 	std::remove(driver_path.c_str());
 }
 

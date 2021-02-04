@@ -4,7 +4,7 @@ Original creator https://github.com/z175
 
 Updated and improved by https://github.com/TheCruZ
 
-Tested from Windows 10 1607 to current Windows 10 20H2
+Tested from Windows 10 1607 to current Windows 10 20H2 :heavy_check_mark:
 
 Update mainly done for UnknownCheats Forum https://www.unknowncheats.me/forum/members/1117395.html
 

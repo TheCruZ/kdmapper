@@ -4,6 +4,8 @@ Original creator https://github.com/z175
 
 Updated and improved by https://github.com/TheCruZ
 
+Tested from Windows 10 1607 to current Windows 10 20H2
+
 Update mainly done for UnknownCheats Forum https://www.unknowncheats.me/forum/members/1117395.html
 
 KDMapper is a simple tool that exploits iqvw64e.sys Intel driver to manually map non-signed drivers in memory

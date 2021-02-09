@@ -62,12 +62,6 @@ void intel_driver::Unload(HANDLE device_handle)
 	std::cout << "[<] Unloading vulnerable driver" << std::endl;
 
 	if (device_handle && device_handle != INVALID_HANDLE_VALUE) {
-		if (!ClearMmUnloadedDrivers(device_handle)) {
-			std::cout << "[!] Failed to clear MmUnloadedDrivers, Restart the computer to prevent bans" << std::endl;
-		}
-		else {
-			std::cout << "[+] MmUnloadedDrivers Cleaned" << std::endl;
-		}
 		CloseHandle(device_handle);
 	}
 
@@ -390,6 +384,11 @@ bool intel_driver::ClearMmUnloadedDrivers(HANDLE device_handle)
 		return false;
 	}
 
+	wchar_t * unloadedName = new wchar_t[us_driver_base_dll_name.Length];
+	memset(unloadedName, 0, us_driver_base_dll_name.Length * sizeof(wchar_t));
+	
+	ReadMemory(device_handle, (uintptr_t)us_driver_base_dll_name.Buffer, unloadedName, us_driver_base_dll_name.Length * sizeof(wchar_t));
+	
 	us_driver_base_dll_name.Length = 0; //MiRememberUnloadedDriver will check if the length > 0 to save the unloaded driver
 
 	if (!WriteMemory(device_handle, driver_section + 0x58, &us_driver_base_dll_name, sizeof(us_driver_base_dll_name))) {
@@ -397,18 +396,11 @@ bool intel_driver::ClearMmUnloadedDrivers(HANDLE device_handle)
 		return false;
 	}
 
+	std::wcout << L"[+] MmUnloadedDrivers Cleaned: " << unloadedName << std::endl;
+
+	delete[] unloadedName;
+
 	return true;
-}
-
-void intel_driver::LocatePidTableInfo(HANDLE device_handle, uintptr_t module) {
-	BYTE PiDDBLockPattern[] = { 0x48, 0x8D, 0x0D, 0x00, 0x00, 0x00, 0x00, 0xE8, 0x00, 0x00, 0x00, 0x00, 0x4C, 0x8B, 0x8C }; //48 8D 0D ? ? ? ? E8 ? ? ? ? 4C 8B 8C
-	char PiDDBLockMask[] = { 'x', 'x', 'x', '?', '?', '?', '?', 'x', '?', '?', '?', '?', 'x', 'x', 'x', 0x00 };
-	BYTE PiDDBCacheTablePattern[] = { 0x66, 0x03, 0xD2, 0x48, 0x8D, 0x0D };
-	char PiDDBCacheTableMask[] = { 'x', 'x', 'x', 'x', 'x', 'x', 0x00 };
-
-
-	PiDDBLockPtr = FindPatternInSectionAtKernel(device_handle, (char*)"PAGE", module, PiDDBLockPattern, PiDDBLockMask);
-	PiDDBCacheTablePtr = FindPatternInSectionAtKernel(device_handle, (char*)"PAGE", module, PiDDBCacheTablePattern, PiDDBCacheTableMask);
 }
 
 PVOID intel_driver::ResolveRelativeAddress(HANDLE device_handle, _In_ PVOID Instruction, _In_ ULONG OffsetOffset, _In_ ULONG InstructionSize) {
@@ -507,7 +499,8 @@ bool intel_driver::ClearPiDDBCacheTable(HANDLE device_handle) { //PiDDBCacheTabl
 	
 	uint64_t ntoskrnl = utils::GetKernelModuleAddress("ntoskrnl.exe");
 
-	LocatePidTableInfo(device_handle, ntoskrnl);
+	PiDDBLockPtr = FindPatternInSectionAtKernel(device_handle, (char*)"PAGE", ntoskrnl, (PUCHAR)"\x81\xFB\x6C\x03\x00\xC0\x0F\x84\x00\x00\x00\x00\x48\x8D\x0D", (char*)"xxxxxxxx????xxx"); // 81 FB 6C 03 00 C0 0F 84 ? ? ? ? 48 8D 0D  update for build 21286 etc...
+	PiDDBCacheTablePtr = FindPatternInSectionAtKernel(device_handle, (char*)"PAGE", ntoskrnl, (PUCHAR)"\x66\x03\xD2\x48\x8D\x0D", (char*)"xxxxxx");
 	if (PiDDBLockPtr == NULL || PiDDBCacheTablePtr == NULL) {
 		std::cout << "[-] Warning no PiDDBCacheTable Found" << std::endl;
 		return false;
@@ -516,7 +509,7 @@ bool intel_driver::ClearPiDDBCacheTable(HANDLE device_handle) { //PiDDBCacheTabl
 	printf("[+] PiDDBLock Ptr %llx\n", PiDDBLockPtr);
 	printf("[+] PiDDBCacheTable Ptr %llx\n", PiDDBCacheTablePtr);
 
-	PVOID PiDDBLock = ResolveRelativeAddress(device_handle, (PVOID)PiDDBLockPtr, 3, 7);
+	PVOID PiDDBLock = ResolveRelativeAddress(device_handle, (PVOID)PiDDBLockPtr, 15, 19);
 	PRTL_AVL_TABLE PiDDBCacheTable = (PRTL_AVL_TABLE)ResolveRelativeAddress(device_handle, (PVOID)PiDDBCacheTablePtr, 6, 10);
 
 
@@ -636,7 +629,7 @@ bool intel_driver::ClearKernelHashBucketList(HANDLE device_handle) {
 	uint64_t ci = utils::GetKernelModuleAddress("ci.dll");
 
 	//Thanks @KDIo3 and @Swiftik from UnknownCheats
-	auto sig = FindPatternInSectionAtKernel(device_handle, (char*)"PAGE",ci, PUCHAR("\x4C\x8D\x35\x00\x00\x00\x00\xE9\x00\x00\x00\x00\x8B\x84\x24"), (char*)"xxx????x????xxx");
+	auto sig = FindPatternInSectionAtKernel(device_handle, (char*)"PAGE",ci, PUCHAR("\x48\x8B\x1D\x00\x00\x00\x00\xEB\x00\xF7\x43\x40\x00\x20\x00\x00"), (char*)"xxx????x?xxxxxxx");
 	if (!sig) {
 		std::cout << "[-] Can't Find g_KernelHashBucketList" << std::endl;
 		return false;

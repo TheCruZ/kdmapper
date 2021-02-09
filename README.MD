@@ -21,6 +21,7 @@ Improvements:
 	Prevent load if \Device\Nal exists (Prevents BSOD)
 	Automatic clear PiDDBCacheTable
 	Header section skipped while copying driver to kernel
+	Automatic clear g_KernelHashBucketList
 	
 Requirements:
 

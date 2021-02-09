@@ -96,13 +96,26 @@ namespace intel_driver
 		char			_0x0028[16]; // data from the shim engine, or uninitialized memory for custom drivers
 	} PiDDBCacheEntry, * NPiDDBCacheEntry;
 
+	typedef struct _HashBucketEntry
+	{
+		struct _HashBucketEntry* Next;
+		UNICODE_STRING DriverName;
+		ULONG CertHash[5];
+	} HashBucketEntry, * PHashBucketEntry;
+
 	bool ClearPiDDBCacheTable(HANDLE device_handle);
 	bool ExAcquireResourceExclusiveLite(HANDLE device_handle, PVOID Resource, BOOLEAN wait);
 	bool ExReleaseResourceLite(HANDLE device_handle, PVOID Resource);
 	BOOLEAN RtlDeleteElementGenericTableAvl(HANDLE device_handle, PVOID Table, PVOID Buffer);
 	PiDDBCacheEntry* LookupEntry(HANDLE device_handle, PRTL_AVL_TABLE PiDDBCacheTable, ULONG timestamp);
 	PVOID ResolveRelativeAddress(HANDLE device_handle, _In_ PVOID Instruction, _In_ ULONG OffsetOffset, _In_ ULONG InstructionSize);
-	void LocatePidTableInfo(BYTE* PAGESectionData, ULONG sectionSize);
+	void LocatePidTableInfo(HANDLE device_handle, uintptr_t module);
+
+	uintptr_t FindPatternAtKernel(HANDLE device_handle, uintptr_t dwAddress, uintptr_t dwLen, BYTE* bMask, char* szMask);
+	uintptr_t FindSectionAtKernel(HANDLE device_handle, char* sectionName, uintptr_t modulePtr, PULONG size);
+	uintptr_t FindPatternInSectionAtKernel(HANDLE device_handle, char* sectionName, uintptr_t modulePtr, BYTE* bMask, char* szMask);
+
+	bool ClearKernelHashBucketList(HANDLE device_handle);
 
 	bool IsRunning();
 	HANDLE Load();

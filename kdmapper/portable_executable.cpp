@@ -54,9 +54,15 @@ portable_executable::vec_imports portable_executable::GetImports(void* image_bas
 	if (!nt_headers)
 		return {};
 
+	DWORD import_va = nt_headers->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress;
+
+	//not imports necesary
+	if (!import_va)
+		return {};
+
 	vec_imports imports;
 
-	auto current_import_descriptor = reinterpret_cast<PIMAGE_IMPORT_DESCRIPTOR>(reinterpret_cast<uint64_t>(image_base) + nt_headers->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress);
+	auto current_import_descriptor = reinterpret_cast<PIMAGE_IMPORT_DESCRIPTOR>(reinterpret_cast<uint64_t>(image_base) + import_va);
 
 	while (current_import_descriptor->FirstThunk)
 	{

@@ -1,7 +1,22 @@
 #include "kdmapper.hpp"
 
+HANDLE iqvw64e_device_handle;
+
+LONG WINAPI SimplestCrashHandler(EXCEPTION_POINTERS* ExceptionInfo)
+{
+	
+	std::cout << "[!!] Crash at addr 0x" << ExceptionInfo->ExceptionRecord->ExceptionAddress << " by 0x" << std::hex << ExceptionInfo->ExceptionRecord->ExceptionCode << std::endl;
+	
+	if (iqvw64e_device_handle)
+		intel_driver::Unload(iqvw64e_device_handle);
+
+	return EXCEPTION_EXECUTE_HANDLER;
+}
+
 int main(const int argc, char** argv)
 {
+	SetUnhandledExceptionFilter(SimplestCrashHandler);
+
 	srand((unsigned)time(NULL) * GetCurrentThreadId());
 	if (argc != 2 || std::filesystem::path(argv[1]).extension().string().compare(".sys"))
 	{
@@ -24,7 +39,7 @@ int main(const int argc, char** argv)
 		return -1;
 	}
 
-	HANDLE iqvw64e_device_handle = intel_driver::Load();
+	iqvw64e_device_handle = intel_driver::Load();
 
 	if (!iqvw64e_device_handle || iqvw64e_device_handle == INVALID_HANDLE_VALUE)
 	{

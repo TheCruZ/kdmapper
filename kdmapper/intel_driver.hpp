@@ -14,7 +14,7 @@ namespace intel_driver
 {
 	extern char driver_name[100]; //"iqvw64e.sys"
 	constexpr uint32_t ioctl1 = 0x80862007;
-	constexpr DWORD iqvw64e_timestamp = 0x5284EAC3;
+	constexpr DWORD iqvw64e_timestamp = 0x4C7670C4; //2010 driver version timestamp
 
 	typedef struct _COPY_MEMORY_BUFFER_INFO
 	{

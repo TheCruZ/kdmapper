@@ -110,7 +110,7 @@ uint64_t kdmapper::MapDriver(HANDLE iqvw64e_device_handle, const std::string& dr
 
 	intel_driver::FreePool(iqvw64e_device_handle, kernel_image_base);
 
-	return 0;
+	return 1;
 }
 
 void kdmapper::RelocateImageByDelta(portable_executable::vec_relocs relocs, const uint64_t delta)

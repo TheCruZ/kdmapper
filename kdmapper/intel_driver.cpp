@@ -647,6 +647,9 @@ bool intel_driver::ClearKernelHashBucketList(HANDLE device_handle) {
 		std::cout << "[-] Can't Find g_HashCache relative address" << std::endl;
 		return false;
 	}
+
+	std::wcout << L"[+] g_KernelHashBucketList Found 0x" << std::hex << g_KernelHashBucketList << std::endl;
+
 	//// Print KernelHashBucketList
 	//ULONG_PTR i = NULL;
 	//ReadMemory(device_handle, (uintptr_t)g_KernelHashBucketList, &i, sizeof(i));
@@ -669,6 +672,11 @@ bool intel_driver::ClearKernelHashBucketList(HANDLE device_handle) {
 	HashBucketEntry* prev = (HashBucketEntry*)g_KernelHashBucketList;
 	HashBucketEntry* entry = 0;
 	ReadMemory(device_handle, (uintptr_t)prev, &entry, sizeof(entry));
+	if (!entry) {
+		std::wcout << L"[!] g_KernelHashBucketList looks empty!" << std::endl;
+		ExReleaseResourceLite(device_handle, g_HashCacheLock);
+		return true;
+	}
 	while (entry) {
 		wchar_t * wsNamePtr = 0;
 		USHORT wsNameLen = 0;

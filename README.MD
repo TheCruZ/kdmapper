@@ -28,4 +28,8 @@ Requirements:
     Set Custom Driver Entry Point
     Create a thread and return from driver entry fastest as you can to prevent unexpected calls
 
+Errors 0xC0000022 and 0xC000009A:
+
+    Alot of people ask me about this errors loading the vulnerable driver, both are caused by FACEIT AC since his driver is always running you have to uninstall it
+
 Have Fun!!

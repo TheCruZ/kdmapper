@@ -44,11 +44,14 @@ uint64_t utils::GetKernelModuleAddress(const std::string& module_name)
 
 	if (!NT_SUCCESS(status))
 	{
-		VirtualFree(buffer, 0, MEM_RELEASE);
+		if (buffer != 0)
+			VirtualFree(buffer, 0, MEM_RELEASE);
 		return 0;
 	}
 
 	const auto modules = static_cast<nt::PRTL_PROCESS_MODULES>(buffer);
+	if (!modules)
+		return 0;
 
 	for (auto i = 0u; i < modules->NumberOfModules; ++i)
 	{
@@ -90,6 +93,9 @@ PVOID utils::FindSection(char* sectionName, uintptr_t modulePtr, PULONG size) {
 		PIMAGE_SECTION_HEADER section = &sections[i];
 		if (memcmp(section->Name, sectionName, namelength) == 0 &&
 			namelength == strlen((char*)section->Name)) {
+			if (!section->VirtualAddress) {
+				return 0;
+			}
 			if (size) {
 				*size = section->Misc.VirtualSize;
 			}

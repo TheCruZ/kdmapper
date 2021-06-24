@@ -10,14 +10,14 @@ bool service::RegisterAndStart(const std::string& driver_path)
 	const std::string nPath = "\\??\\" + driver_path;
 
 	HKEY dservice;
-	LSTATUS status = RegCreateKey(HKEY_LOCAL_MACHINE, servicesPath.c_str(), &dservice); //Returns Ok if already exists
+	LSTATUS status = RegCreateKeyA(HKEY_LOCAL_MACHINE, servicesPath.c_str(), &dservice); //Returns Ok if already exists
 	if (status != ERROR_SUCCESS)
 	{
 		printf("[-] Can't create service key\n");
 		return false;
 	}
 
-	status = RegSetKeyValue(dservice, NULL, "ImagePath", REG_EXPAND_SZ, nPath.c_str(), (DWORD)nPath.size());
+	status = RegSetKeyValueA(dservice, NULL, "ImagePath", REG_EXPAND_SZ, nPath.c_str(), (DWORD)nPath.size());
 	if (status != ERROR_SUCCESS)
 	{
 		RegCloseKey(dservice);
@@ -25,7 +25,7 @@ bool service::RegisterAndStart(const std::string& driver_path)
 		return false;
 	}
 	
-	status = RegSetKeyValue(dservice, NULL, "Type", REG_DWORD, &ServiceTypeKernel, sizeof(DWORD));
+	status = RegSetKeyValueA(dservice, NULL, "Type", REG_DWORD, &ServiceTypeKernel, sizeof(DWORD));
 	if (status != ERROR_SUCCESS)
 	{
 		RegCloseKey(dservice);
@@ -35,7 +35,7 @@ bool service::RegisterAndStart(const std::string& driver_path)
 	
 	RegCloseKey(dservice);
 
-	HMODULE ntdll = GetModuleHandle("ntdll.dll");
+	HMODULE ntdll = GetModuleHandleA("ntdll.dll");
 	if (ntdll == NULL) {
 		return false;
 	}
@@ -75,7 +75,7 @@ bool service::StopAndRemove(const std::string& driver_name)
 
 	HKEY driver_service;
 	std::string servicesPath = "SYSTEM\\CurrentControlSet\\Services\\" + driver_name;
-	LSTATUS status = RegOpenKey(HKEY_LOCAL_MACHINE, servicesPath.c_str(), &driver_service);
+	LSTATUS status = RegOpenKeyA(HKEY_LOCAL_MACHINE, servicesPath.c_str(), &driver_service);
 	if (status != ERROR_SUCCESS)
 	{
 		if (status == ERROR_FILE_NOT_FOUND) {
@@ -93,7 +93,7 @@ bool service::StopAndRemove(const std::string& driver_name)
 	}
 	
 
-	status = RegDeleteKey(HKEY_LOCAL_MACHINE, servicesPath.c_str());
+	status = RegDeleteKeyA(HKEY_LOCAL_MACHINE, servicesPath.c_str());
 	if (status != ERROR_SUCCESS)
 	{
 		return false;

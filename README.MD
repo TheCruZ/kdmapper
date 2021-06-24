@@ -14,6 +14,8 @@ Fixups:
 
     Hook "NtQueryInformationAtom" which exists in all windows versions
     Fixed unable to load /GS- compiled drivers
+	Update: Now hooks "NtAddAtom" which is 100x times less used than NtQueryInformationAtom
+	Fixed 2 BSODs related to clear g_KernelHashBucketList and clear MmUnloadedDrivers
 
 Improvements:
 
@@ -22,6 +24,7 @@ Improvements:
 	Automatic clear PiDDBCacheTable
 	Header section skipped while copying driver to kernel
 	Automatic clear g_KernelHashBucketList
+	Added param --free to automatically free the allocated pool
 	
 Requirements:
 

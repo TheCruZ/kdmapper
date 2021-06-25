@@ -6,6 +6,6 @@
 
 namespace service
 {
-	bool RegisterAndStart(const std::string& driver_path);
-	bool StopAndRemove(const std::string& driver_name);
+	bool RegisterAndStart(const std::wstring& driver_path);
+	bool StopAndRemove(const std::wstring& driver_name);
 };

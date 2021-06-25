@@ -133,19 +133,18 @@ namespace intel_driver
 	bool FreePool(HANDLE device_handle, uint64_t address);
 	uint64_t GetKernelModuleExport(HANDLE device_handle, uint64_t kernel_module_base, const std::string& function_name);
 	bool ClearMmUnloadedDrivers(HANDLE device_handle);
+	std::wstring GetDriverNameW();
+	std::wstring GetDriverPath();
 
 	template<typename T, typename ...A>
-	bool CallKernelFunction(HANDLE device_handle, T* out_result, uint64_t kernel_function_address, const A ...arguments)
-	{
+	bool CallKernelFunction(HANDLE device_handle, T* out_result, uint64_t kernel_function_address, const A ...arguments) {
 		constexpr auto call_void = std::is_same_v<T, void>;
 
-		if constexpr (!call_void)
-		{
+		if constexpr (!call_void) {
 			if (!out_result)
 				return false;
 		}
-		else
-		{
+		else {
 			UNREFERENCED_PARAMETER(out_result);
 		}
 
@@ -155,14 +154,14 @@ namespace intel_driver
 		// Setup function call
 		HMODULE ntdll = GetModuleHandleA("ntdll.dll");
 		if (ntdll == 0) {
-			std::cout << "[-] Failed to load ntdll.dll" << std::endl; //never should happens
+			Log(L"[-] Failed to load ntdll.dll" << std::endl); //never should happens
 			return false;
 		}
 
 		const auto NtAddAtom = reinterpret_cast<void*>(GetProcAddress(ntdll, "NtAddAtom"));
 		if (!NtAddAtom)
 		{
-			std::cout << "[-] Failed to get export ntdll.NtAddAtom" << std::endl;
+			Log(L"[-] Failed to get export ntdll.NtAddAtom" << std::endl);
 			return false;
 		}
 
@@ -171,9 +170,8 @@ namespace intel_driver
 		*(uint64_t*)&kernel_injected_jmp[2] = kernel_function_address;
 
 		static uint64_t kernel_NtAddAtom = GetKernelModuleExport(device_handle, intel_driver::ntoskrnlAddr, "NtAddAtom");
-		if (!kernel_NtAddAtom)
-		{
-			std::cout << "[-] Failed to get export ntoskrnl.NtAddAtom" << std::endl;
+		if (!kernel_NtAddAtom) {
+			Log(L"[-] Failed to get export ntoskrnl.NtAddAtom" << std::endl);
 			return false;
 		}
 
@@ -184,7 +182,7 @@ namespace intel_driver
 			original_kernel_function[1] == kernel_injected_jmp[1] &&
 			original_kernel_function[sizeof(kernel_injected_jmp) - 2] == kernel_injected_jmp[sizeof(kernel_injected_jmp) - 2] &&
 			original_kernel_function[sizeof(kernel_injected_jmp) - 1] == kernel_injected_jmp[sizeof(kernel_injected_jmp) - 1]) {
-			std::cout << "[-] FAILED!: The code was already hooked!! another instance of kdmapper running?!" << std::endl;
+			Log(L"[-] FAILED!: The code was already hooked!! another instance of kdmapper running?!" << std::endl);
 			return false;
 		}
 
@@ -193,15 +191,13 @@ namespace intel_driver
 			return false;
 
 		// Call function
-		if constexpr (!call_void)
-		{
+		if constexpr (!call_void) {
 			using FunctionFn = T(__stdcall*)(A...);
 			const auto Function = reinterpret_cast<FunctionFn>(NtAddAtom);
 
 			*out_result = Function(arguments...);
 		}
-		else
-		{
+		else {
 			using FunctionFn = void(__stdcall*)(A...);
 			const auto Function = reinterpret_cast<FunctionFn>(NtAddAtom);
 

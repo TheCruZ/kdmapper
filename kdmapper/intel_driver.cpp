@@ -536,8 +536,16 @@ bool intel_driver::ClearPiDDBCacheTable(HANDLE device_handle) { //PiDDBCacheTabl
 	PVOID PiDDBLock = ResolveRelativeAddress(device_handle, (PVOID)PiDDBLockPtr, 15, 19);
 	PRTL_AVL_TABLE PiDDBCacheTable = (PRTL_AVL_TABLE)ResolveRelativeAddress(device_handle, (PVOID)PiDDBCacheTablePtr, 6, 10);
 
-
-	SetMemory(device_handle, (uintptr_t)PiDDBCacheTable + (offsetof(struct _RTL_AVL_TABLE, TableContext)), 1, sizeof(PVOID));
+	ULONG64 prevContext = 0;
+	ULONG64 targetContext = 1;
+	if (!ReadMemory(device_handle, (uintptr_t)PiDDBCacheTable + (offsetof(struct _RTL_AVL_TABLE, TableContext)), &prevContext, sizeof(ULONG64))) {
+		Log(L"[-] Can't get read piddbcache table context" << std::endl);
+		return false;
+	}
+	if (prevContext != targetContext) {
+		WriteMemory(device_handle, (uintptr_t)PiDDBCacheTable + (offsetof(struct _RTL_AVL_TABLE, TableContext)), &targetContext, sizeof(ULONG64));
+	}
+	//fixed previous SetMemory leaving wrong context
 
 	if (!ExAcquireResourceExclusiveLite(device_handle, PiDDBLock, true)) {
 		Log(L"[-] Can't lock PiDDBCacheTable" << std::endl);
@@ -585,6 +593,19 @@ bool intel_driver::ClearPiDDBCacheTable(HANDLE device_handle) { //PiDDBCacheTabl
 		Log(L"[-] Can't delete from PiDDBCacheTable" << std::endl);
 		ExReleaseResourceLite(device_handle, PiDDBLock);
 		return false;
+	}
+
+	//Decrement delete count
+	ULONG cacheDeleteCount = 0;
+	ReadMemory(device_handle, (uintptr_t)PiDDBCacheTable + (offsetof(struct _RTL_AVL_TABLE, DeleteCount)), &cacheDeleteCount, sizeof(ULONG));
+	if (cacheDeleteCount > 0) {
+		cacheDeleteCount--;
+		WriteMemory(device_handle, (uintptr_t)PiDDBCacheTable + (offsetof(struct _RTL_AVL_TABLE, DeleteCount)), &cacheDeleteCount, sizeof(ULONG));
+	}
+
+	//Restore context if wasn't 1
+	if (prevContext != targetContext) {
+		WriteMemory(device_handle, (uintptr_t)PiDDBCacheTable + (offsetof(struct _RTL_AVL_TABLE, TableContext)), &prevContext, sizeof(ULONG64));
 	}
 
 	// release the ddb resource lock

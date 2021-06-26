@@ -1,6 +1,6 @@
 #include "kdmapper.hpp"
 
-uint64_t kdmapper::MapDriver(HANDLE iqvw64e_device_handle, const std::wstring& driver_path, ULONG64 param1, ULONG64 param2, bool free) {
+uint64_t kdmapper::MapDriver(HANDLE iqvw64e_device_handle, const std::wstring& driver_path, ULONG64 param1, ULONG64 param2, bool free, bool destroyHeader) {
 	std::vector<uint8_t> raw_image = { 0 };
 
 	if (!utils::ReadFileToMemory(driver_path, &raw_image)) {
@@ -21,14 +21,14 @@ uint64_t kdmapper::MapDriver(HANDLE iqvw64e_device_handle, const std::wstring& d
 	}
 
 	const uint32_t image_size = nt_headers->OptionalHeader.SizeOfImage;
-	
+
 	void* local_image_base = VirtualAlloc(nullptr, image_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 	if (!local_image_base)
 		return 0;
 
 	DWORD TotalVirtualHeaderSize = (IMAGE_FIRST_SECTION(nt_headers))->VirtualAddress;
 
-	uint64_t kernel_image_base = intel_driver::AllocatePool(iqvw64e_device_handle, nt::POOL_TYPE::NonPagedPool, image_size - TotalVirtualHeaderSize);
+	uint64_t kernel_image_base = intel_driver::AllocatePool(iqvw64e_device_handle, nt::POOL_TYPE::NonPagedPool, image_size - (destroyHeader ? TotalVirtualHeaderSize : 0));
 
 	do {
 		if (!kernel_image_base) {
@@ -45,16 +45,17 @@ uint64_t kdmapper::MapDriver(HANDLE iqvw64e_device_handle, const std::wstring& d
 		// Copy image sections
 
 		const PIMAGE_SECTION_HEADER current_image_section = IMAGE_FIRST_SECTION(nt_headers);
-		
+
 		for (auto i = 0; i < nt_headers->FileHeader.NumberOfSections; ++i) {
 			auto local_section = reinterpret_cast<void*>(reinterpret_cast<uint64_t>(local_image_base) + current_image_section[i].VirtualAddress);
 			memcpy(local_section, reinterpret_cast<void*>(reinterpret_cast<uint64_t>(raw_image.data()) + current_image_section[i].PointerToRawData), current_image_section[i].SizeOfRawData);
 		}
-		
-		uint64_t realBase = kernel_image_base;
-		kernel_image_base -= TotalVirtualHeaderSize;
 
-		Log(L"[+] Skipped 0x" << std::hex << TotalVirtualHeaderSize << L" bytes of PE Header" << std::endl);
+		uint64_t realBase = kernel_image_base;
+		if (destroyHeader) {
+			kernel_image_base -= TotalVirtualHeaderSize;
+			Log(L"[+] Skipped 0x" << std::hex << TotalVirtualHeaderSize << L" bytes of PE Header" << std::endl);
+		}
 
 		// Resolve relocs and imports
 
@@ -68,7 +69,7 @@ uint64_t kdmapper::MapDriver(HANDLE iqvw64e_device_handle, const std::wstring& d
 
 		// Write fixed image to kernel
 
-		if (!intel_driver::WriteMemory(iqvw64e_device_handle, realBase, (PVOID)((uintptr_t)local_image_base + TotalVirtualHeaderSize), image_size - TotalVirtualHeaderSize)) {
+		if (!intel_driver::WriteMemory(iqvw64e_device_handle, realBase, (PVOID)((uintptr_t)local_image_base + (destroyHeader ? TotalVirtualHeaderSize : 0)), image_size - (destroyHeader ? TotalVirtualHeaderSize : 0))) {
 			Log(L"[-] Failed to write local image to remote image" << std::endl);
 			kernel_image_base = realBase;
 			break;
@@ -89,7 +90,7 @@ uint64_t kdmapper::MapDriver(HANDLE iqvw64e_device_handle, const std::wstring& d
 		}
 
 		Log(L"[+] DriverEntry returned 0x" << std::hex << status << std::endl);
-		
+
 		if (free)
 			intel_driver::FreePool(iqvw64e_device_handle, realBase);
 
@@ -98,7 +99,7 @@ uint64_t kdmapper::MapDriver(HANDLE iqvw64e_device_handle, const std::wstring& d
 
 	} while (false);
 
-	
+
 	VirtualFree(local_image_base, 0, MEM_RELEASE);
 
 	intel_driver::FreePool(iqvw64e_device_handle, kernel_image_base);
@@ -113,14 +114,15 @@ void kdmapper::RelocateImageByDelta(portable_executable::vec_relocs relocs, cons
 			const uint16_t offset = current_reloc.item[i] & 0xFFF;
 
 			if (type == IMAGE_REL_BASED_DIR64)
-				* reinterpret_cast<uint64_t*>(current_reloc.address + offset) += delta;
+				*reinterpret_cast<uint64_t*>(current_reloc.address + offset) += delta;
 		}
 	}
 }
 
 bool kdmapper::ResolveImports(HANDLE iqvw64e_device_handle, portable_executable::vec_imports imports) {
 	for (const auto& current_import : imports) {
-		if (!utils::GetKernelModuleAddress(current_import.module_name)) {
+		ULONG64 Module = utils::GetKernelModuleAddress(current_import.module_name);
+		if (!Module) {
 #if !defined(DISABLE_OUTPUT)
 			std::cout << "[-] Dependency " << current_import.module_name << " wasn't found" << std::endl;
 #endif
@@ -128,13 +130,19 @@ bool kdmapper::ResolveImports(HANDLE iqvw64e_device_handle, portable_executable:
 		}
 
 		for (auto& current_function_data : current_import.function_datas) {
-			const uint64_t function_address = intel_driver::GetKernelModuleExport(iqvw64e_device_handle, utils::GetKernelModuleAddress(current_import.module_name), current_function_data.name);
+			uint64_t function_address = intel_driver::GetKernelModuleExport(iqvw64e_device_handle, Module, current_function_data.name);
 
 			if (!function_address) {
+				//Lets try with ntoskrnl
+				if (Module != intel_driver::ntoskrnlAddr) {
+					function_address = intel_driver::GetKernelModuleExport(iqvw64e_device_handle, intel_driver::ntoskrnlAddr, current_function_data.name);
+					if (!function_address) {
 #if !defined(DISABLE_OUTPUT)
-				std::cout << "[-] Failed to resolve import " << current_function_data.name << " (" << current_import.module_name << ")" << std::endl;
+						std::cout << "[-] Failed to resolve import " << current_function_data.name << " (" << current_import.module_name << ")" << std::endl;
 #endif
-				return false;
+						return false;
+					}
+				}
 			}
 
 			*current_function_data.address = function_address;

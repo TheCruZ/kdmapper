@@ -52,6 +52,11 @@ bool service::RegisterAndStart(const std::wstring& driver_path) {
 	Status = NtLoadDriver(&serviceStr);
 	Log("[+] NtLoadDriver Status 0x" << std::hex << Status << std::endl);
 
+    if (Status == 0xC000010E) // ntstatus.h STATUS_IMAGE_ALREADY_LOADED = 0xC000010E
+	{
+		return true;
+	}
+	
 	return NT_SUCCESS(Status);
 }
 

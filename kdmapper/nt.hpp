@@ -35,30 +35,31 @@ namespace nt
 		SYSTEM_HANDLE Handles[1];
 	} SYSTEM_HANDLE_INFORMATION_EX, *PSYSTEM_HANDLE_INFORMATION_EX;
 
-	typedef enum class _POOL_TYPE {
+	//Thanks to Pvt Comfy for remember to update this https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/ne-wdm-_pool_type
+	typedef enum _POOL_TYPE {
 		NonPagedPool,
-		NonPagedPoolExecute,
+		NonPagedPoolExecute = NonPagedPool,
 		PagedPool,
-		NonPagedPoolMustSucceed,
+		NonPagedPoolMustSucceed = NonPagedPool + 2,
 		DontUseThisType,
-		NonPagedPoolCacheAligned,
+		NonPagedPoolCacheAligned = NonPagedPool + 4,
 		PagedPoolCacheAligned,
-		NonPagedPoolCacheAlignedMustS,
+		NonPagedPoolCacheAlignedMustS = NonPagedPool + 6,
 		MaxPoolType,
-		NonPagedPoolBase,
-		NonPagedPoolBaseMustSucceed,
-		NonPagedPoolBaseCacheAligned,
-		NonPagedPoolBaseCacheAlignedMustS,
-		NonPagedPoolSession,
-		PagedPoolSession,
-		NonPagedPoolMustSucceedSession,
-		DontUseThisTypeSession,
-		NonPagedPoolCacheAlignedSession,
-		PagedPoolCacheAlignedSession,
-		NonPagedPoolCacheAlignedMustSSession,
-		NonPagedPoolNx,
-		NonPagedPoolNxCacheAligned,
-		NonPagedPoolSessionNx
+		NonPagedPoolBase = 0,
+		NonPagedPoolBaseMustSucceed = NonPagedPoolBase + 2,
+		NonPagedPoolBaseCacheAligned = NonPagedPoolBase + 4,
+		NonPagedPoolBaseCacheAlignedMustS = NonPagedPoolBase + 6,
+		NonPagedPoolSession = 32,
+		PagedPoolSession = NonPagedPoolSession + 1,
+		NonPagedPoolMustSucceedSession = PagedPoolSession + 1,
+		DontUseThisTypeSession = NonPagedPoolMustSucceedSession + 1,
+		NonPagedPoolCacheAlignedSession = DontUseThisTypeSession + 1,
+		PagedPoolCacheAlignedSession = NonPagedPoolCacheAlignedSession + 1,
+		NonPagedPoolCacheAlignedMustSSession = PagedPoolCacheAlignedSession + 1,
+		NonPagedPoolNx = 512,
+		NonPagedPoolNxCacheAligned = NonPagedPoolNx + 4,
+		NonPagedPoolSessionNx = NonPagedPoolNx + 32,
 	} POOL_TYPE;
 
 	typedef struct _RTL_PROCESS_MODULE_INFORMATION

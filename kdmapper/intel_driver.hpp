@@ -104,37 +104,6 @@ namespace intel_driver
 		ULONG CertHash[5];
 	} HashBucketEntry, * PHashBucketEntry;
 
-	/*added by psec*/
-	typedef enum _MEMORY_CACHING_TYPE_ORIG {
-		MmFrameBufferCached = 2
-	} MEMORY_CACHING_TYPE_ORIG;
-
-	typedef enum _MEMORY_CACHING_TYPE {
-		MmNonCached = FALSE,
-		MmCached = TRUE,
-		MmWriteCombined = MmFrameBufferCached,
-		MmHardwareCoherentCached,
-		MmNonCachedUnordered,       // IA64
-		MmUSWCCached,
-		MmMaximumCacheType,
-		MmNotMapped = -1
-	} MEMORY_CACHING_TYPE;
-
-	typedef CCHAR KPROCESSOR_MODE;
-
-	typedef enum _MODE {
-		KernelMode,
-		UserMode,
-		MaximumMode
-	} MODE;
-
-	typedef enum _MM_PAGE_PRIORITY {
-		LowPagePriority,
-		NormalPagePriority = 16,
-		HighPagePriority = 32
-	} MM_PAGE_PRIORITY;
-	/**/
-
 	bool ClearPiDDBCacheTable(HANDLE device_handle);
 	bool ExAcquireResourceExclusiveLite(HANDLE device_handle, PVOID Resource, BOOLEAN wait);
 	bool ExReleaseResourceLite(HANDLE device_handle, PVOID Resource);
@@ -161,14 +130,6 @@ namespace intel_driver
 	bool WriteMemory(HANDLE device_handle, uint64_t address, void* buffer, uint64_t size);
 	bool WriteToReadOnlyMemory(HANDLE device_handle, uint64_t address, void* buffer, uint32_t size);
 	uint64_t AllocatePool(HANDLE device_handle, nt::POOL_TYPE pool_type, uint64_t size);
-	/*added by psec*/
-	uint64_t MmAllocatePagesForMdl(HANDLE device_handle, LARGE_INTEGER LowAddress, LARGE_INTEGER HighAddress, LARGE_INTEGER SkipBytes, SIZE_T TotalBytes, MEMORY_CACHING_TYPE CacheType, ULONG Flags);
-	uint64_t MmMapLockedPagesSpecifyCache(HANDLE device_handle, uint64_t pmdl, KPROCESSOR_MODE AccessMode, MEMORY_CACHING_TYPE CacheType, uint64_t RequestedAddress, ULONG BugCheckOnFailure, ULONG Priority);
-	bool MmProtectMdlSystemAddress(HANDLE device_handle, uint64_t MemoryDescriptorList, ULONG NewProtect);
-	bool MmUnmapLockedPages(HANDLE device_handle, uint64_t BaseAddress, uint64_t pmdl);
-	bool MmUnlockPages(HANDLE device_handle, uint64_t MemoryDescriptorList);
-	bool IoFreeMdl(HANDLE device_handle, uint64_t Mdl);
-	/**/
 
 	bool FreePool(HANDLE device_handle, uint64_t address);
 	uint64_t GetKernelModuleExport(HANDLE device_handle, uint64_t kernel_module_base, const std::string& function_name);

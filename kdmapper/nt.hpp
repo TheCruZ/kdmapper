@@ -36,7 +36,7 @@ namespace nt
 	} SYSTEM_HANDLE_INFORMATION_EX, *PSYSTEM_HANDLE_INFORMATION_EX;
 
 	//Thanks to Pvt Comfy for remember to update this https://docs.microsoft.com/en-us/windows-hardware/drivers/ddi/wdm/ne-wdm-_pool_type
-	typedef enum _POOL_TYPE {
+	typedef enum class _POOL_TYPE {
 		NonPagedPool,
 		NonPagedPoolExecute = NonPagedPool,
 		PagedPool,

@@ -27,7 +27,6 @@ Improvements:
 	Header section skipped while copying driver to kernel
 	Automatic clear g_KernelHashBucketList
 	Added param --free to automatically free the allocated pool
-	Added param --mdl to map in mdl memory (for now not compatible with --free)
 	Added param --PassAllocationPtr to pass allocation ptr as first param
 	
 Requirements:

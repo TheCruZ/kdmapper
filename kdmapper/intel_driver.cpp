@@ -244,8 +244,13 @@ bool intel_driver::WriteToReadOnlyMemory(HANDLE device_handle, uint64_t address,
 
 	bool result = WriteMemory(device_handle, mapped_physical_memory, buffer, size);
 
+#if defined(DISABLE_OUTPUT)
+	UnmapIoSpace(device_handle, mapped_physical_memory, size);
+#else
 	if (!UnmapIoSpace(device_handle, mapped_physical_memory, size))
 		Log(L"[!] Failed to unmap IO space of physical address 0x" << reinterpret_cast<void*>(physical_address) << std::endl);
+#endif
+
 
 	return result;
 }

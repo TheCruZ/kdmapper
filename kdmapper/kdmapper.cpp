@@ -135,7 +135,11 @@ uint64_t kdmapper::MapDriver(HANDLE iqvw64e_device_handle, BYTE* data, ULONG64 p
 		Log(L"[<] Calling DriverEntry 0x" << reinterpret_cast<void*>(address_of_entry_point) << std::endl);
 
 		if (callback) {
-			callback(&param1, &param2, realBase, image_size, mdlptr);
+			if (!callback(&param1, &param2, realBase, image_size, mdlptr)) {
+				Log(L"[-] Callback returns false, failed!" << std::endl);
+				kernel_image_base = realBase;
+				break;
+			}
 		}
 
 		NTSTATUS status = 0;

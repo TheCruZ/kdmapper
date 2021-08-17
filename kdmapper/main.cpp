@@ -33,20 +33,21 @@ void help() {
 	Log(L"[+] Usage: kdmapper.exe [--free][--mdl][--PassAllocationPtr] driver" << std::endl);
 }
 
-void callbackExample(ULONG64* param1, ULONG64* param2, ULONG64 allocationPtr, ULONG64 allocationSize, ULONG64 mdlptr) {
+bool callbackExample(ULONG64* param1, ULONG64* param2, ULONG64 allocationPtr, ULONG64 allocationSize, ULONG64 mdlptr) {
 	UNREFERENCED_PARAMETER(param1);
 	UNREFERENCED_PARAMETER(param2);
 	UNREFERENCED_PARAMETER(allocationPtr);
 	UNREFERENCED_PARAMETER(allocationSize);
 	UNREFERENCED_PARAMETER(mdlptr);
 	Log("[+] Callback example called" << std::endl);
-
+	
 	/*
 	This callback occurs before call driver entry and
 	can be usefull to pass more customized params in 
 	the last step of the mapping procedure since you 
 	know now the mapping address and other things
 	*/
+	return true;
 }
 
 int wmain(const int argc, wchar_t** argv) {

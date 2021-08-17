@@ -24,7 +24,7 @@ KDMapper is a simple tool that exploits iqvw64e.sys Intel driver to manually map
 	Use NtLoadDriver and NtUnloadDriver for less traces
 	Prevent load if \Device\Nal exists (Prevents BSOD)
 	Header section skipped while copying driver to kernel
-	Added param --free to automatically free the allocated pool
+	Added param --free to automatically unmap the allocated memory
 	Added param --mdl to map in mdl memory
 	Added param --PassAllocationPtr to pass allocation ptr as first param
 	

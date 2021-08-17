@@ -37,10 +37,15 @@ int wmain(const int argc, wchar_t** argv) {
 	SetUnhandledExceptionFilter(SimplestCrashHandler);
 
 	bool free = paramExists(argc, argv, L"free") > 0;
+	bool mdlMode = paramExists(argc, argv, L"mdl") > 0;
 	bool passAllocationPtr = paramExists(argc, argv, L"PassAllocationPtr") > 0;
 
 	if (free) {
 		Log(L"[+] Free pool memory after usage enabled" << std::endl);
+	}
+
+	if (mdlMode) {
+		Log(L"[+] Mdl memory usage enabled" << std::endl);
 	}
 
 	if (passAllocationPtr) {
@@ -55,7 +60,7 @@ int wmain(const int argc, wchar_t** argv) {
 		}
 	}
 
-	if(drvIndex <= 0) {
+	if (drvIndex <= 0) {
 		help();
 		return -1;
 	}
@@ -72,7 +77,7 @@ int wmain(const int argc, wchar_t** argv) {
 	if (iqvw64e_device_handle == INVALID_HANDLE_VALUE)
 		return -1;
 
-	if (!kdmapper::MapDriver(iqvw64e_device_handle, driver_path, 0, 0, free, true, passAllocationPtr)) {
+	if (!kdmapper::MapDriver(iqvw64e_device_handle, driver_path, 0, 0, free, true, mdlMode, passAllocationPtr)) {
 		Log(L"[-] Failed to map " << driver_path << std::endl);
 		intel_driver::Unload(iqvw64e_device_handle);
 		return -1;

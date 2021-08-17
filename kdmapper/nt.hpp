@@ -81,4 +81,35 @@ namespace nt
 		ULONG NumberOfModules;
 		RTL_PROCESS_MODULE_INFORMATION Modules[1];
 	} RTL_PROCESS_MODULES, *PRTL_PROCESS_MODULES;
+
+	/*added by psec*/
+	typedef enum _MEMORY_CACHING_TYPE_ORIG {
+		MmFrameBufferCached = 2
+	} MEMORY_CACHING_TYPE_ORIG;
+
+	typedef enum _MEMORY_CACHING_TYPE {
+		MmNonCached = FALSE,
+		MmCached = TRUE,
+		MmWriteCombined = MmFrameBufferCached,
+		MmHardwareCoherentCached,
+		MmNonCachedUnordered,       // IA64
+		MmUSWCCached,
+		MmMaximumCacheType,
+		MmNotMapped = -1
+	} MEMORY_CACHING_TYPE;
+
+	typedef CCHAR KPROCESSOR_MODE;
+
+	typedef enum _MODE {
+		KernelMode,
+		UserMode,
+		MaximumMode
+	} MODE;
+
+	typedef enum _MM_PAGE_PRIORITY {
+		LowPagePriority,
+		NormalPagePriority = 16,
+		HighPagePriority = 32
+	} MM_PAGE_PRIORITY;
+	/**/
 }

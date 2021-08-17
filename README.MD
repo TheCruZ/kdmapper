@@ -4,6 +4,8 @@ Original creator https://github.com/z175
 
 Updated and improved by https://github.com/TheCruZ
 
+Mdl allocation writed by https://github.com/TygoL
+
 Tested from **Windows 10 1607** to current **Windows 11 22000** :heavy_check_mark:
 
 Update mainly done for UnknownCheats Forum https://www.unknowncheats.me/forum/members/1117395.html
@@ -27,6 +29,7 @@ Improvements:
 	Header section skipped while copying driver to kernel
 	Automatic clear g_KernelHashBucketList
 	Added param --free to automatically free the allocated pool
+	Added param --mdl to map in mdl memory
 	Added param --PassAllocationPtr to pass allocation ptr as first param
 	
 Requirements:

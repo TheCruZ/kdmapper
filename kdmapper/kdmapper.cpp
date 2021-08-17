@@ -51,7 +51,7 @@ uint64_t kdmapper::AllocMdlMemory(HANDLE iqvw64e_device_handle, uint64_t size, u
 	return mappingStartAddress;
 }
 
-uint64_t kdmapper::MapDriver(HANDLE iqvw64e_device_handle, const std::wstring& driver_path, ULONG64 param1, ULONG64 param2, bool free, bool destroyHeader, bool mdlMode, bool PassAllocationAddressAsFirstParam) {
+uint64_t kdmapper::MapDriver(HANDLE iqvw64e_device_handle, const std::wstring& driver_path, ULONG64 param1, ULONG64 param2, bool free, bool destroyHeader, bool mdlMode, bool PassAllocationAddressAsFirstParam, mapCallback callback, NTSTATUS* exitCode) {
 	std::vector<uint8_t> raw_image = { 0 };
 
 	if (!utils::ReadFileToMemory(driver_path, &raw_image)) {
@@ -139,13 +139,19 @@ uint64_t kdmapper::MapDriver(HANDLE iqvw64e_device_handle, const std::wstring& d
 
 		Log(L"[<] Calling DriverEntry 0x" << reinterpret_cast<void*>(address_of_entry_point) << std::endl);
 
-		NTSTATUS status = 0;
+		if (callback) {
+			callback(&param1, &param2, realBase, mdlptr);
+		}
 
+		NTSTATUS status = 0;
 		if (!intel_driver::CallKernelFunction(iqvw64e_device_handle, &status, address_of_entry_point, (PassAllocationAddressAsFirstParam ? realBase : param1), param2)) {
 			Log(L"[-] Failed to call driver entry" << std::endl);
 			kernel_image_base = realBase;
 			break;
 		}
+
+		if (exitCode)
+			*exitCode = status;
 
 		Log(L"[+] DriverEntry returned 0x" << std::hex << status << std::endl);
 

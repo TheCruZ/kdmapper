@@ -27,6 +27,7 @@ KDMapper is a simple tool that exploits iqvw64e.sys Intel driver to manually map
 	Added param --free to automatically unmap the allocated memory
 	Added param --mdl to map in mdl memory
 	Added param --PassAllocationPtr to pass allocation ptr as first param
+	Added the possibility to modify params before call driver entry
 	
 ## Requirements:
 
@@ -34,6 +35,6 @@ KDMapper is a simple tool that exploits iqvw64e.sys Intel driver to manually map
     Create a thread and return from driver entry fastest as you can to prevent unexpected calls
 
 ### Errors 0xC0000022 and 0xC000009A:
-Alot of people ask me about this errors loading the vulnerable driver, both are caused by FACEIT AC since his driver is always running you have to uninstall it
+A lot of people ask me about this errors loading the vulnerable driver, both are caused by FACEIT AC since his driver is always running you have to uninstall it
 
 Have Fun!!

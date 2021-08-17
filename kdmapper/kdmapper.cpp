@@ -51,15 +51,9 @@ uint64_t kdmapper::AllocMdlMemory(HANDLE iqvw64e_device_handle, uint64_t size, u
 	return mappingStartAddress;
 }
 
-uint64_t kdmapper::MapDriver(HANDLE iqvw64e_device_handle, const std::wstring& driver_path, ULONG64 param1, ULONG64 param2, bool free, bool destroyHeader, bool mdlMode, bool PassAllocationAddressAsFirstParam, mapCallback callback, NTSTATUS* exitCode) {
-	std::vector<uint8_t> raw_image = { 0 };
+uint64_t kdmapper::MapDriver(HANDLE iqvw64e_device_handle, BYTE* data, ULONG64 param1, ULONG64 param2, bool free, bool destroyHeader, bool mdlMode, bool PassAllocationAddressAsFirstParam, mapCallback callback, NTSTATUS* exitCode) {
 
-	if (!utils::ReadFileToMemory(driver_path, &raw_image)) {
-		Log(L"[-] Failed to read image to memory" << std::endl);
-		return 0;
-	}
-
-	const PIMAGE_NT_HEADERS64 nt_headers = portable_executable::GetNtHeaders(raw_image.data());
+	const PIMAGE_NT_HEADERS64 nt_headers = portable_executable::GetNtHeaders(data);
 
 	if (!nt_headers) {
 		Log(L"[-] Invalid format of PE image" << std::endl);
@@ -98,7 +92,7 @@ uint64_t kdmapper::MapDriver(HANDLE iqvw64e_device_handle, const std::wstring& d
 
 		// Copy image headers
 
-		memcpy(local_image_base, raw_image.data(), nt_headers->OptionalHeader.SizeOfHeaders);
+		memcpy(local_image_base, data, nt_headers->OptionalHeader.SizeOfHeaders);
 
 		// Copy image sections
 
@@ -106,7 +100,7 @@ uint64_t kdmapper::MapDriver(HANDLE iqvw64e_device_handle, const std::wstring& d
 
 		for (auto i = 0; i < nt_headers->FileHeader.NumberOfSections; ++i) {
 			auto local_section = reinterpret_cast<void*>(reinterpret_cast<uint64_t>(local_image_base) + current_image_section[i].VirtualAddress);
-			memcpy(local_section, reinterpret_cast<void*>(reinterpret_cast<uint64_t>(raw_image.data()) + current_image_section[i].PointerToRawData), current_image_section[i].SizeOfRawData);
+			memcpy(local_section, reinterpret_cast<void*>(reinterpret_cast<uint64_t>(data) + current_image_section[i].PointerToRawData), current_image_section[i].SizeOfRawData);
 		}
 
 		uint64_t realBase = kernel_image_base;

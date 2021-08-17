@@ -28,6 +28,7 @@ KDMapper is a simple tool that exploits iqvw64e.sys Intel driver to manually map
 	Added param --mdl to map in mdl memory
 	Added param --PassAllocationPtr to pass allocation ptr as first param
 	Added the possibility to modify params before call driver entry
+	Now you can pass directly bytes to mapdriver function
 	
 ## Requirements:
 

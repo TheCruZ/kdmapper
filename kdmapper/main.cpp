@@ -92,9 +92,15 @@ int wmain(const int argc, wchar_t** argv) {
 	if (iqvw64e_device_handle == INVALID_HANDLE_VALUE)
 		return -1;
 
-	NTSTATUS exitCode = 0;
+	std::vector<uint8_t> raw_image = { 0 };
+	if (!utils::ReadFileToMemory(driver_path, &raw_image)) {
+		Log(L"[-] Failed to read image to memory" << std::endl);
+		intel_driver::Unload(iqvw64e_device_handle);
+		return -1;
+	}
 
-	if (!kdmapper::MapDriver(iqvw64e_device_handle, driver_path, 0, 0, free, true, mdlMode, passAllocationPtr, callbackExample, &exitCode)) {
+	NTSTATUS exitCode = 0;
+	if (!kdmapper::MapDriver(iqvw64e_device_handle, raw_image.data(), 0, 0, free, true, mdlMode, passAllocationPtr, callbackExample, &exitCode)) {
 		Log(L"[-] Failed to map " << driver_path << std::endl);
 		intel_driver::Unload(iqvw64e_device_handle);
 		return -1;

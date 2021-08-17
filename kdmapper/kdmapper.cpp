@@ -65,13 +65,14 @@ uint64_t kdmapper::MapDriver(HANDLE iqvw64e_device_handle, BYTE* data, ULONG64 p
 		return 0;
 	}
 
-	const uint32_t image_size = nt_headers->OptionalHeader.SizeOfImage;
+	uint32_t image_size = nt_headers->OptionalHeader.SizeOfImage;
 
 	void* local_image_base = VirtualAlloc(nullptr, image_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 	if (!local_image_base)
 		return 0;
 
 	DWORD TotalVirtualHeaderSize = (IMAGE_FIRST_SECTION(nt_headers))->VirtualAddress;
+	image_size = image_size - (destroyHeader ? TotalVirtualHeaderSize : 0);
 
 	uint64_t kernel_image_base = 0;
 	uint64_t mdlptr = 0;
@@ -79,7 +80,7 @@ uint64_t kdmapper::MapDriver(HANDLE iqvw64e_device_handle, BYTE* data, ULONG64 p
 		kernel_image_base = AllocMdlMemory(iqvw64e_device_handle, image_size, &mdlptr);
 	}
 	else {
-		kernel_image_base = intel_driver::AllocatePool(iqvw64e_device_handle, nt::POOL_TYPE::NonPagedPool, image_size - (destroyHeader ? TotalVirtualHeaderSize : 0));
+		kernel_image_base = intel_driver::AllocatePool(iqvw64e_device_handle, nt::POOL_TYPE::NonPagedPool, image_size);
 	}
 
 	do {
@@ -121,7 +122,7 @@ uint64_t kdmapper::MapDriver(HANDLE iqvw64e_device_handle, BYTE* data, ULONG64 p
 
 		// Write fixed image to kernel
 
-		if (!intel_driver::WriteMemory(iqvw64e_device_handle, realBase, (PVOID)((uintptr_t)local_image_base + (destroyHeader ? TotalVirtualHeaderSize : 0)), image_size - (destroyHeader ? TotalVirtualHeaderSize : 0))) {
+		if (!intel_driver::WriteMemory(iqvw64e_device_handle, realBase, (PVOID)((uintptr_t)local_image_base + (destroyHeader ? TotalVirtualHeaderSize : 0)), image_size)) {
 			Log(L"[-] Failed to write local image to remote image" << std::endl);
 			kernel_image_base = realBase;
 			break;
@@ -134,7 +135,7 @@ uint64_t kdmapper::MapDriver(HANDLE iqvw64e_device_handle, BYTE* data, ULONG64 p
 		Log(L"[<] Calling DriverEntry 0x" << reinterpret_cast<void*>(address_of_entry_point) << std::endl);
 
 		if (callback) {
-			callback(&param1, &param2, realBase, mdlptr);
+			callback(&param1, &param2, realBase, image_size, mdlptr);
 		}
 
 		NTSTATUS status = 0;

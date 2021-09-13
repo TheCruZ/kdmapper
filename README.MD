@@ -6,7 +6,7 @@ Updated and improved by https://github.com/TheCruZ
 
 Mdl allocation writed by https://github.com/TygoL
 
-Tested from **Windows 10 1607** to current **Windows 11 22000.132** :heavy_check_mark:
+Tested from **Windows 10 1607** to current **Windows 11 22449.1** :heavy_check_mark:
 
 Update mainly done for UnknownCheats Forum https://www.unknowncheats.me/forum/members/1117395.html
 

@@ -826,8 +826,6 @@ bool intel_driver::ClearKernelHashBucketList(HANDLE device_handle) {
 	}
 
 	std::wstring wdname = GetDriverNameW();
-	std::wstring search_path = GetDriverPath();
-	SIZE_T expected_len = (search_path.length() - 2) * 2;
 
 	while (entry) {
 
@@ -840,67 +838,66 @@ bool intel_driver::ClearKernelHashBucketList(HANDLE device_handle) {
 			return false;
 		}
 
-		if (expected_len == wsNameLen) {
-			wchar_t* wsNamePtr = 0;
-			if (!ReadMemory(device_handle, (uintptr_t)entry + offsetof(HashBucketEntry, DriverName.Buffer), &wsNamePtr, sizeof(wsNamePtr)) || !wsNamePtr) {
-				Log(L"[-] Failed to read g_KernelHashBucketList entry text ptr!" << std::endl);
+		wchar_t* wsNamePtr = 0;
+		if (!ReadMemory(device_handle, (uintptr_t)entry + offsetof(HashBucketEntry, DriverName.Buffer), &wsNamePtr, sizeof(wsNamePtr)) || !wsNamePtr) {
+			Log(L"[-] Failed to read g_KernelHashBucketList entry text ptr!" << std::endl);
+			if (!ExReleaseResourceLite(device_handle, g_HashCacheLock)) {
+				Log(L"[-] Failed to release g_KernelHashBucketList lock!" << std::endl);
+			}
+			return false;
+		}
+
+		wchar_t* wsName = new wchar_t[(ULONG64)wsNameLen / 2ULL + 1ULL];
+		memset(wsName, 0, wsNameLen + sizeof(wchar_t));
+
+		if (!ReadMemory(device_handle, (uintptr_t)wsNamePtr, wsName, wsNameLen)) {
+			Log(L"[-] Failed to read g_KernelHashBucketList entry text!" << std::endl);
+			if (!ExReleaseResourceLite(device_handle, g_HashCacheLock)) {
+				Log(L"[-] Failed to release g_KernelHashBucketList lock!" << std::endl);
+			}
+			return false;
+		}
+
+		size_t find_result = std::wstring(wsName).find(wdname);
+		if (find_result != std::wstring::npos) {
+			Log(L"[+] Found In g_KernelHashBucketList: " << std::wstring(&wsName[find_result]) << std::endl);
+			HashBucketEntry* Next = 0;
+			if (!ReadMemory(device_handle, (uintptr_t)entry, &Next, sizeof(Next))) {
+				Log(L"[-] Failed to read g_KernelHashBucketList next entry ptr!" << std::endl);
 				if (!ExReleaseResourceLite(device_handle, g_HashCacheLock)) {
 					Log(L"[-] Failed to release g_KernelHashBucketList lock!" << std::endl);
 				}
 				return false;
 			}
 
-			wchar_t* wsName = new wchar_t[(ULONG64)wsNameLen / 2ULL + 1ULL];
-			memset(wsName, 0, wsNameLen + sizeof(wchar_t));
-
-			if (!ReadMemory(device_handle, (uintptr_t)wsNamePtr, wsName, wsNameLen)) {
-				Log(L"[-] Failed to read g_KernelHashBucketList entry text!" << std::endl);
+			if (!WriteMemory(device_handle, (uintptr_t)prev, &Next, sizeof(Next))) {
+				Log(L"[-] Failed to write g_KernelHashBucketList prev entry ptr!" << std::endl);
 				if (!ExReleaseResourceLite(device_handle, g_HashCacheLock)) {
 					Log(L"[-] Failed to release g_KernelHashBucketList lock!" << std::endl);
 				}
 				return false;
 			}
 
-			size_t find_result = std::wstring(wsName).find(wdname);
-			if (find_result != std::wstring::npos) {
-				Log(L"[+] Found In g_KernelHashBucketList: " << std::wstring(&wsName[find_result]) << std::endl);
-				HashBucketEntry* Next = 0;
-				if (!ReadMemory(device_handle, (uintptr_t)entry, &Next, sizeof(Next))) {
-					Log(L"[-] Failed to read g_KernelHashBucketList next entry ptr!" << std::endl);
-					if (!ExReleaseResourceLite(device_handle, g_HashCacheLock)) {
-						Log(L"[-] Failed to release g_KernelHashBucketList lock!" << std::endl);
-					}
-					return false;
-				}
-
-				if (!WriteMemory(device_handle, (uintptr_t)prev, &Next, sizeof(Next))) {
-					Log(L"[-] Failed to write g_KernelHashBucketList prev entry ptr!" << std::endl);
-					if (!ExReleaseResourceLite(device_handle, g_HashCacheLock)) {
-						Log(L"[-] Failed to release g_KernelHashBucketList lock!" << std::endl);
-					}
-					return false;
-				}
-
-				if (!FreePool(device_handle, (uintptr_t)entry)) {
-					Log(L"[-] Failed to clear g_KernelHashBucketList entry pool!" << std::endl);
-					if (!ExReleaseResourceLite(device_handle, g_HashCacheLock)) {
-						Log(L"[-] Failed to release g_KernelHashBucketList lock!" << std::endl);
-					}
-					return false;
-				}
-				Log(L"[+] g_KernelHashBucketList Cleaned" << std::endl);
+			if (!FreePool(device_handle, (uintptr_t)entry)) {
+				Log(L"[-] Failed to clear g_KernelHashBucketList entry pool!" << std::endl);
 				if (!ExReleaseResourceLite(device_handle, g_HashCacheLock)) {
 					Log(L"[-] Failed to release g_KernelHashBucketList lock!" << std::endl);
-					if (!ExReleaseResourceLite(device_handle, g_HashCacheLock)) {
-						Log(L"[-] Failed to release g_KernelHashBucketList lock!" << std::endl);
-					}
-					return false;
 				}
-				delete[] wsName;
-				return true;
+				return false;
+			}
+			Log(L"[+] g_KernelHashBucketList Cleaned" << std::endl);
+			if (!ExReleaseResourceLite(device_handle, g_HashCacheLock)) {
+				Log(L"[-] Failed to release g_KernelHashBucketList lock!" << std::endl);
+				if (!ExReleaseResourceLite(device_handle, g_HashCacheLock)) {
+					Log(L"[-] Failed to release g_KernelHashBucketList lock!" << std::endl);
+				}
+				return false;
 			}
 			delete[] wsName;
+			return true;
 		}
+		delete[] wsName;
+
 		prev = entry;
 		//read next
 		if (!ReadMemory(device_handle, (uintptr_t)entry, &entry, sizeof(entry))) {

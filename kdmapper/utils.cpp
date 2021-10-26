@@ -44,14 +44,15 @@ uint64_t utils::GetKernelModuleAddress(const std::string& module_name) {
 	NTSTATUS status = NtQuerySystemInformation(static_cast<SYSTEM_INFORMATION_CLASS>(nt::SystemModuleInformation), buffer, buffer_size, &buffer_size);
 
 	while (status == nt::STATUS_INFO_LENGTH_MISMATCH) {
-		VirtualFree(buffer, 0, MEM_RELEASE);
+		if (buffer != nullptr)
+			VirtualFree(buffer, 0, MEM_RELEASE);
 
 		buffer = VirtualAlloc(nullptr, buffer_size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 		status = NtQuerySystemInformation(static_cast<SYSTEM_INFORMATION_CLASS>(nt::SystemModuleInformation), buffer, buffer_size, &buffer_size);
 	}
 
 	if (!NT_SUCCESS(status)) {
-		if (buffer != 0)
+		if (buffer != nullptr)
 			VirtualFree(buffer, 0, MEM_RELEASE);
 		return 0;
 	}

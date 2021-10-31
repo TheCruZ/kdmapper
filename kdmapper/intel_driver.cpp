@@ -579,36 +579,35 @@ BOOLEAN intel_driver::RtlDeleteElementGenericTableAvl(HANDLE device_handle, PVOI
 	return (CallKernelFunction(device_handle, &out, kernel_RtlDeleteElementGenericTableAvl, Table, Buffer) && out);
 }
 
-intel_driver::PiDDBCacheEntry* intel_driver::LookupEntry(HANDLE device_handle, PRTL_AVL_TABLE PiDDBCacheTable, ULONG timestamp) {
-	PiDDBCacheEntry* firstEntry;
-	if (!ReadMemory(device_handle, (uintptr_t)PiDDBCacheTable + (offsetof(struct _RTL_AVL_TABLE, BalancedRoot.RightChild)), &firstEntry, sizeof(_RTL_BALANCED_LINKS*))) {
+PVOID intel_driver::RtlLookupElementGenericTableAvl(HANDLE device_handle, PRTL_AVL_TABLE Table, PVOID Buffer) {
+	if (!Table)
+		return nullptr;
+
+	static uint64_t kernel_RtlDeleteElementGenericTableAvl = GetKernelModuleExport(device_handle, intel_driver::ntoskrnlAddr, "RtlLookupElementGenericTableAvl");
+
+	if (!kernel_RtlDeleteElementGenericTableAvl) {
+		Log(L"[!] Failed to find RtlLookupElementGenericTableAvl" << std::endl);
 		return nullptr;
 	}
 
-	(*(uintptr_t*)&firstEntry) += sizeof(RTL_BALANCED_LINKS);
+	PVOID out;
 
-	PiDDBCacheEntry* cache_entry;
-	if (!ReadMemory(device_handle, (uintptr_t)firstEntry + (offsetof(struct _PiDDBCacheEntry, List.Flink)), &cache_entry, sizeof(_LIST_ENTRY*))) {
-		return nullptr;
-	}
+	if (!CallKernelFunction(device_handle, &out, kernel_RtlDeleteElementGenericTableAvl, Table, Buffer))
+		return 0;
 
-	while (TRUE) {
-		ULONG itemTimeDateStamp = 0;
-		if (!ReadMemory(device_handle, (uintptr_t)cache_entry + (offsetof(struct _PiDDBCacheEntry, TimeDateStamp)), &itemTimeDateStamp, sizeof(ULONG))) {
-			return nullptr;
-		}
-		if (itemTimeDateStamp == timestamp) {
-			Log("[+] PiDDBCacheTable result -> TimeStamp: " << itemTimeDateStamp << std::endl);
-			return cache_entry;
-		}
-		if ((uintptr_t)cache_entry == (uintptr_t)firstEntry) {
-			break;
-		}
-		if (!ReadMemory(device_handle, (uintptr_t)cache_entry + (offsetof(struct _PiDDBCacheEntry, List.Flink)), &cache_entry, sizeof(_LIST_ENTRY*))) {
-			return nullptr;
-		}
-	}
-	return nullptr;
+	return out;
+}
+
+
+intel_driver::PiDDBCacheEntry* intel_driver::LookupEntry(HANDLE device_handle, PRTL_AVL_TABLE PiDDBCacheTable, ULONG timestamp, const wchar_t * name) {
+	
+	PiDDBCacheEntry localentry{};
+	localentry.TimeDateStamp = timestamp;
+	localentry.DriverName.Buffer = (PWSTR)name;
+	localentry.DriverName.Length = (USHORT)(wcslen(name) * 2);
+	localentry.DriverName.MaximumLength = localentry.DriverName.Length + 2;
+
+	return (PiDDBCacheEntry*)RtlLookupElementGenericTableAvl(device_handle, PiDDBCacheTable, (PVOID)&localentry);
 }
 
 bool intel_driver::ClearPiDDBCacheTable(HANDLE device_handle) { //PiDDBCacheTable added on LoadDriver
@@ -640,16 +639,7 @@ bool intel_driver::ClearPiDDBCacheTable(HANDLE device_handle) { //PiDDBCacheTabl
 	PVOID PiDDBLock = ResolveRelativeAddress(device_handle, (PVOID)PiDDBLockPtr, 3, 7);
 	PRTL_AVL_TABLE PiDDBCacheTable = (PRTL_AVL_TABLE)ResolveRelativeAddress(device_handle, (PVOID)PiDDBCacheTablePtr, 6, 10);
 
-	ULONG64 prevContext = 0;
-	ULONG64 targetContext = 1;
-	if (!ReadMemory(device_handle, (uintptr_t)PiDDBCacheTable + (offsetof(struct _RTL_AVL_TABLE, TableContext)), &prevContext, sizeof(ULONG64))) {
-		Log(L"[-] Can't get read piddbcache table context" << std::endl);
-		return false;
-	}
-	if (prevContext != targetContext) {
-		WriteMemory(device_handle, (uintptr_t)PiDDBCacheTable + (offsetof(struct _RTL_AVL_TABLE, TableContext)), &targetContext, sizeof(ULONG64));
-	}
-	//fixed previous SetMemory leaving wrong context
+	//context part is not used by lookup, lock or delete why we should use it?
 
 	if (!ExAcquireResourceExclusiveLite(device_handle, PiDDBLock, true)) {
 		Log(L"[-] Can't lock PiDDBCacheTable" << std::endl);
@@ -657,8 +647,10 @@ bool intel_driver::ClearPiDDBCacheTable(HANDLE device_handle) { //PiDDBCacheTabl
 	}
 	Log(L"[+] PiDDBLock Locked" << std::endl);
 
+	auto n = GetDriverNameW();
+
 	// search our entry in the table
-	PiDDBCacheEntry* pFoundEntry = (PiDDBCacheEntry*)LookupEntry(device_handle, PiDDBCacheTable, iqvw64e_timestamp);
+	PiDDBCacheEntry* pFoundEntry = (PiDDBCacheEntry*)LookupEntry(device_handle, PiDDBCacheTable, iqvw64e_timestamp, n.c_str());
 	if (pFoundEntry == nullptr) {
 		Log(L"[-] Not found in cache" << std::endl);
 		ExReleaseResourceLite(device_handle, PiDDBLock);
@@ -705,11 +697,6 @@ bool intel_driver::ClearPiDDBCacheTable(HANDLE device_handle) { //PiDDBCacheTabl
 	if (cacheDeleteCount > 0) {
 		cacheDeleteCount--;
 		WriteMemory(device_handle, (uintptr_t)PiDDBCacheTable + (offsetof(struct _RTL_AVL_TABLE, DeleteCount)), &cacheDeleteCount, sizeof(ULONG));
-	}
-
-	//Restore context if wasn't 1
-	if (prevContext != targetContext) {
-		WriteMemory(device_handle, (uintptr_t)PiDDBCacheTable + (offsetof(struct _RTL_AVL_TABLE, TableContext)), &prevContext, sizeof(ULONG64));
 	}
 
 	// release the ddb resource lock

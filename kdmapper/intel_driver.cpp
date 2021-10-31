@@ -105,14 +105,16 @@ HANDLE intel_driver::Load() {
 	return result;
 }
 
-void intel_driver::Unload(HANDLE device_handle) {
+bool intel_driver::Unload(HANDLE device_handle) {
 	Log(L"[<] Unloading vulnerable driver" << std::endl);
 
 	if (device_handle && device_handle != INVALID_HANDLE_VALUE) {
 		CloseHandle(device_handle);
 	}
 
-	service::StopAndRemove(GetDriverNameW());
+	if (!service::StopAndRemove(GetDriverNameW()))
+		return false;
+
 	std::wstring driver_path = GetDriverPath();
 
 	//Destroy disk information before unlink from disk to prevent any recover of the file
@@ -132,7 +134,10 @@ void intel_driver::Unload(HANDLE device_handle) {
 	delete[] randomData;
 
 	//unlink the file
-	_wremove(driver_path.c_str());
+	if (_wremove(driver_path.c_str()) != 0)
+		return false;
+
+	return true;
 }
 
 bool intel_driver::MemCopy(HANDLE device_handle, uint64_t destination, uint64_t source, uint64_t size) {

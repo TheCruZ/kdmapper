@@ -120,7 +120,7 @@ namespace intel_driver
 
 	bool IsRunning();
 	HANDLE Load();
-	void Unload(HANDLE device_handle);
+	bool Unload(HANDLE device_handle);
 
 	bool MemCopy(HANDLE device_handle, uint64_t destination, uint64_t source, uint64_t size);
 	bool SetMemory(HANDLE device_handle, uint64_t address, uint32_t value, uint64_t size);

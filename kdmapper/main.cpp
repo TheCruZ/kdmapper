@@ -108,6 +108,8 @@ int wmain(const int argc, wchar_t** argv) {
 		return -1;
 	}
 
-	intel_driver::Unload(iqvw64e_device_handle);
+	if (!intel_driver::Unload(iqvw64e_device_handle)) {
+		Log(L"[-] Warning failed to fully unload vulnerable driver " << driver_path << std::endl);
+	}
 	Log(L"[+] success" << std::endl);
 }

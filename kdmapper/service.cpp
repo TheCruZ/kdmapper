@@ -85,12 +85,12 @@ bool service::StopAndRemove(const std::wstring& driver_name) {
 	Log("[+] NtUnloadDriver Status 0x" << std::hex << st << std::endl);
 	if (st != 0x0) {
 		Log("[-] Driver Unload Failed!!" << std::endl);
-		status = RegDeleteKeyW(HKEY_LOCAL_MACHINE, servicesPath.c_str());
+		status = RegDeleteTreeW(HKEY_LOCAL_MACHINE, servicesPath.c_str());
 		return false; //lets consider unload fail as error because can cause problems with anti cheats later
 	}
 	
 
-	status = RegDeleteKeyW(HKEY_LOCAL_MACHINE, servicesPath.c_str());
+	status = RegDeleteTreeW(HKEY_LOCAL_MACHINE, servicesPath.c_str());
 	if (status != ERROR_SUCCESS) {
 		return false;
 	}

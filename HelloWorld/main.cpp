@@ -1,7 +1,7 @@
 
 #include <ntddk.h>
 
-NTSTATUS CustomDriverEntry(
+NTSTATUS NtProcessStartup(
 	_In_ PDRIVER_OBJECT  kdmapperParam1,
 	_In_ PUNICODE_STRING kdmapperParam2
 )

@@ -51,7 +51,26 @@ uint64_t kdmapper::AllocMdlMemory(HANDLE iqvw64e_device_handle, uint64_t size, u
 	return mappingStartAddress;
 }
 
-uint64_t kdmapper::MapDriver(HANDLE iqvw64e_device_handle, BYTE* data, ULONG64 param1, ULONG64 param2, bool free, bool destroyHeader, bool mdlMode, bool PassAllocationAddressAsFirstParam, mapCallback callback, NTSTATUS* exitCode) {
+uint64_t kdmapper::AllocIndependentPages(HANDLE device_handle, uint32_t size)
+{
+	const auto base = intel_driver::MmAllocateIndependentPagesEx(device_handle, size);
+	if (!base)
+	{
+		Log(L"[-] Error allocating independent pages" << std::endl);
+		return 0;
+	}
+
+	if (!intel_driver::MmSetPageProtection(device_handle, base, size, PAGE_EXECUTE_READWRITE))
+	{
+		Log(L"[-] Failed to change page protections" << std::endl);
+		intel_driver::MmFreeIndependentPages(device_handle, base, size);
+		return 0;
+	}
+
+	return base;
+}
+
+uint64_t kdmapper::MapDriver(HANDLE iqvw64e_device_handle, BYTE* data, ULONG64 param1, ULONG64 param2, bool free, bool destroyHeader, bool mdlMode, bool indPagesMode, bool PassAllocationAddressAsFirstParam, mapCallback callback, NTSTATUS* exitCode) {
 
 	const PIMAGE_NT_HEADERS64 nt_headers = portable_executable::GetNtHeaders(data);
 
@@ -78,6 +97,9 @@ uint64_t kdmapper::MapDriver(HANDLE iqvw64e_device_handle, BYTE* data, ULONG64 p
 	uint64_t mdlptr = 0;
 	if (mdlMode) {
 		kernel_image_base = AllocMdlMemory(iqvw64e_device_handle, image_size, &mdlptr);
+	}
+	else if (indPagesMode) {
+		kernel_image_base = AllocIndependentPages(iqvw64e_device_handle, image_size);
 	}
 	else {
 		kernel_image_base = intel_driver::AllocatePool(iqvw64e_device_handle, nt::POOL_TYPE::NonPagedPool, image_size);
@@ -160,6 +182,10 @@ uint64_t kdmapper::MapDriver(HANDLE iqvw64e_device_handle, BYTE* data, ULONG64 p
 			intel_driver::MmUnmapLockedPages(iqvw64e_device_handle, realBase, mdlptr);
 			intel_driver::MmFreePagesFromMdl(iqvw64e_device_handle, mdlptr);
 			intel_driver::FreePool(iqvw64e_device_handle, mdlptr);
+		}
+		else if (free && indPagesMode)
+		{
+			intel_driver::MmFreeIndependentPages(iqvw64e_device_handle, realBase, image_size);
 		}
 		else if (free) {
 			intel_driver::FreePool(iqvw64e_device_handle, realBase);

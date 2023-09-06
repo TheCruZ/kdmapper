@@ -119,7 +119,7 @@ bool intel_driver::Unload(HANDLE device_handle) {
 
 	//Destroy disk information before unlink from disk to prevent any recover of the file
 	std::ofstream file_ofstream(driver_path.c_str(), std::ios_base::out | std::ios_base::binary);
-	int newFileLen = sizeof(intel_driver_resource::driver) + ((long long)rand() % 2348767 + 56725);
+	int newFileLen = sizeof(intel_driver_resource::driver) + (((long long)rand()*(long long)rand()) % 2000000 + 1000);
 	BYTE* randomData = new BYTE[newFileLen];
 	for (size_t i = 0; i < newFileLen; i++) {
 		randomData[i] = (BYTE)(rand() % 255);

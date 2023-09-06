@@ -13,6 +13,7 @@ Update mainly done for UnknownCheats Forum https://www.unknowncheats.me/forum/me
 KDMapper is a simple tool that exploits iqvw64e.sys Intel driver to manually map non-signed drivers in memory
 
 **Note:** Add definition **DISABLE_OUTPUT** to remove all console outputs
+**Note:** Can be recommended like in the past set a custom entry point like in the HelloWorld example to reduce the generated code in the binary
 
 ## Features:
 	

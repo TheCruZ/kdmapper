@@ -65,6 +65,12 @@ uint64_t kdmapper::MapDriver(HANDLE iqvw64e_device_handle, BYTE* data, ULONG64 p
 		return 0;
 	}
 
+	if (!FixSecurityCookie(data))
+	{
+		Log(L"[-] Failed to fix cookie");
+		return 0;
+	}
+
 	uint32_t image_size = nt_headers->OptionalHeader.SizeOfImage;
 
 	void* local_image_base = VirtualAlloc(nullptr, image_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
@@ -189,6 +195,38 @@ void kdmapper::RelocateImageByDelta(portable_executable::vec_relocs relocs, cons
 				*reinterpret_cast<uint64_t*>(current_reloc.address + offset) += delta;
 		}
 	}
+}
+ 
+bool kdmapper::FixSecurityCookie(void* local_image)
+{
+	auto headers = portable_executable::GetNtHeaders(local_image);
+	if (!headers)
+		return false;
+
+	auto load_config_directory = headers->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_LOAD_CONFIG].VirtualAddress;
+	if (!load_config_directory)
+	{
+#if !defined(DISABLE_OUTPUT)
+		std::cout << "[-] Load config directory wasn't found !" << std::endl; // should absolutely NEVER happens.
+#endif
+		return false;
+	}
+	auto load_config_struct = (PIMAGE_LOAD_CONFIG_DIRECTORY)((uintptr_t)local_image + load_config_directory);
+	auto stack_cookie = load_config_struct->SecurityCookie;
+	if (!stack_cookie || *(uintptr_t*)(stack_cookie))
+	{
+#if !defined(DISABLE_OUTPUT)
+		std::cout << "[/] StackCookie was not defined !" << std::endl; // can happens if the compiler didn't add it, tho it is not an error !
+#endif
+		return true; // as I said, it is not an error and we should allow that behavior
+	}
+
+	auto new_cookie = 0x2B992DDFA232 ^ GetCurrentProcessId() ^ GetCurrentThreadId(); // here we don't really care about the value of stack cookie, it will still works and produce nice result
+	if (new_cookie == 0x2B992DDFA232)
+		new_cookie = 0x2B992DDFA233;
+
+	*(uintptr_t*)(stack_cookie) = new_cookie; // the _security_cookie_complement will be init by the driver itself if they use crt
+	return true;
 }
 
 bool kdmapper::ResolveImports(HANDLE iqvw64e_device_handle, portable_executable::vec_imports imports) {

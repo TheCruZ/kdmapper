@@ -67,7 +67,7 @@ uint64_t kdmapper::MapDriver(HANDLE iqvw64e_device_handle, BYTE* data, ULONG64 p
 
 	if (!FixSecurityCookie(data))
 	{
-		Log(L"[-] Failed to fix cookie");
+		Log(L"[-] Failed to fix cookie" << std::endl);
 		return 0;
 	}
 
@@ -196,7 +196,8 @@ void kdmapper::RelocateImageByDelta(portable_executable::vec_relocs relocs, cons
 		}
 	}
 }
- 
+
+// Fix cookie by @Jerem584
 bool kdmapper::FixSecurityCookie(void* local_image)
 {
 	auto headers = portable_executable::GetNtHeaders(local_image);
@@ -206,18 +207,14 @@ bool kdmapper::FixSecurityCookie(void* local_image)
 	auto load_config_directory = headers->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_LOAD_CONFIG].VirtualAddress;
 	if (!load_config_directory)
 	{
-#if !defined(DISABLE_OUTPUT)
-		std::cout << "[-] Load config directory wasn't found !" << std::endl; // should absolutely NEVER happens.
-#endif
-		return false;
+		Log(L"[+] Load config directory wasn't found, probably StackCookie not defined, fix cookie skipped" << std::endl);
+		return true;
 	}
 	auto load_config_struct = (PIMAGE_LOAD_CONFIG_DIRECTORY)((uintptr_t)local_image + load_config_directory);
 	auto stack_cookie = load_config_struct->SecurityCookie;
 	if (!stack_cookie || *(uintptr_t*)(stack_cookie))
 	{
-#if !defined(DISABLE_OUTPUT)
-		std::cout << "[/] StackCookie was not defined !" << std::endl; // can happens if the compiler didn't add it, tho it is not an error !
-#endif
+		Log(L"[+] StackCookie not defined, fix cookie skipped" << std::endl);
 		return true; // as I said, it is not an error and we should allow that behavior
 	}
 

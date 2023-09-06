@@ -214,7 +214,6 @@ namespace intel_driver
 		}
 
 		// Restore the pointer/jmp
-		WriteToReadOnlyMemory(device_handle, kernel_NtAddAtom, original_kernel_function, sizeof(kernel_injected_jmp));
-		return true;
+		return WriteToReadOnlyMemory(device_handle, kernel_NtAddAtom, original_kernel_function, sizeof(kernel_injected_jmp));
 	}
 }

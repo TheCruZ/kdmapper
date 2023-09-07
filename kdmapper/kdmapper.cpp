@@ -65,12 +65,6 @@ uint64_t kdmapper::MapDriver(HANDLE iqvw64e_device_handle, BYTE* data, ULONG64 p
 		return 0;
 	}
 
-	if (!FixSecurityCookie(data))
-	{
-		Log(L"[-] Failed to fix cookie" << std::endl);
-		return 0;
-	}
-
 	uint32_t image_size = nt_headers->OptionalHeader.SizeOfImage;
 
 	void* local_image_base = VirtualAlloc(nullptr, image_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
@@ -121,6 +115,12 @@ uint64_t kdmapper::MapDriver(HANDLE iqvw64e_device_handle, BYTE* data, ULONG64 p
 		// Resolve relocs and imports
 
 		RelocateImageByDelta(portable_executable::GetRelocs(local_image_base), kernel_image_base - nt_headers->OptionalHeader.ImageBase);
+
+		if (!FixSecurityCookie(local_image_base, kernel_image_base ))
+		{
+			Log(L"[-] Failed to fix cookie" << std::endl);
+			return 0;
+		}
 
 		if (!ResolveImports(iqvw64e_device_handle, portable_executable::GetImports(local_image_base))) {
 			Log(L"[-] Failed to resolve imports" << std::endl);
@@ -198,7 +198,7 @@ void kdmapper::RelocateImageByDelta(portable_executable::vec_relocs relocs, cons
 }
 
 // Fix cookie by @Jerem584
-bool kdmapper::FixSecurityCookie(void* local_image)
+bool kdmapper::FixSecurityCookie(void* local_image, uint64_t kernel_image_base)
 {
 	auto headers = portable_executable::GetNtHeaders(local_image);
 	if (!headers)
@@ -210,13 +210,23 @@ bool kdmapper::FixSecurityCookie(void* local_image)
 		Log(L"[+] Load config directory wasn't found, probably StackCookie not defined, fix cookie skipped" << std::endl);
 		return true;
 	}
+	
 	auto load_config_struct = (PIMAGE_LOAD_CONFIG_DIRECTORY)((uintptr_t)local_image + load_config_directory);
 	auto stack_cookie = load_config_struct->SecurityCookie;
-	if (!stack_cookie || *(uintptr_t*)(stack_cookie))
+	if (!stack_cookie)
 	{
 		Log(L"[+] StackCookie not defined, fix cookie skipped" << std::endl);
 		return true; // as I said, it is not an error and we should allow that behavior
 	}
+
+	stack_cookie = stack_cookie - (uintptr_t)kernel_image_base + (uintptr_t)local_image; //since our local image is already relocated the base returned will be kernel address
+
+	if (*(uintptr_t*)(stack_cookie) != 0x2B992DDFA232) {
+		Log(L"[-] StackCookie already fixed!? this probably wrong" << std::endl);
+		return false;
+	}
+
+	Log(L"[+] Fixing stack cookie" << std::endl);
 
 	auto new_cookie = 0x2B992DDFA232 ^ GetCurrentProcessId() ^ GetCurrentThreadId(); // here we don't really care about the value of stack cookie, it will still works and produce nice result
 	if (new_cookie == 0x2B992DDFA232)

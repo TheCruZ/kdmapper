@@ -106,8 +106,22 @@ int wmain(const int argc, wchar_t** argv) {
 		return -1;
 	}
 
+	kdmapper::AllocationMode mode = kdmapper::AllocationMode::AllocatePool;
+
+	if (mdlMode && indPagesMode) {
+		Log(L"[-] Too many allocation modes" << std::endl);
+		intel_driver::Unload(iqvw64e_device_handle);
+		return -1;
+	}
+	else if (mdlMode) {
+		mode = kdmapper::AllocationMode::AllocateMdl;
+	}
+	else if (indPagesMode) {
+		mode = kdmapper::AllocationMode::AllocateIndependentPages;
+	}
+
 	NTSTATUS exitCode = 0;
-	if (!kdmapper::MapDriver(iqvw64e_device_handle, raw_image.data(), 0, 0, free, true, mdlMode, indPagesMode, passAllocationPtr, callbackExample, &exitCode)) {
+	if (!kdmapper::MapDriver(iqvw64e_device_handle, raw_image.data(), 0, 0, free, true, mode, passAllocationPtr, callbackExample, &exitCode)) {
 		Log(L"[-] Failed to map " << driver_path << std::endl);
 		intel_driver::Unload(iqvw64e_device_handle);
 		return -1;

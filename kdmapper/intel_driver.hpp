@@ -132,7 +132,7 @@ namespace intel_driver
 	bool WriteToReadOnlyMemory(HANDLE device_handle, uint64_t address, void* buffer, uint32_t size);
 	/*added by herooyyy*/
 	uint64_t MmAllocateIndependentPagesEx(HANDLE device_handle, uint32_t size);
-	void MmFreeIndependentPages(HANDLE device_handle, uint64_t address, uint32_t size);
+	bool MmFreeIndependentPages(HANDLE device_handle, uint64_t address, uint32_t size);
 	BOOLEAN MmSetPageProtection(HANDLE device_handle, uint64_t address, uint32_t size, ULONG new_protect);
 	
 	uint64_t AllocatePool(HANDLE device_handle, nt::POOL_TYPE pool_type, uint64_t size);

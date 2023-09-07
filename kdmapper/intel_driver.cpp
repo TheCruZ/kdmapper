@@ -260,6 +260,98 @@ bool intel_driver::WriteToReadOnlyMemory(HANDLE device_handle, uint64_t address,
 	return result;
 }
 
+uint64_t intel_driver::MmAllocateIndependentPagesEx(HANDLE device_handle, uint32_t size)
+{
+	uint64_t allocated_pages{};
+
+	static uint64_t kernel_MmAllocateIndependentPagesEx = 0;
+	
+	if (!kernel_MmAllocateIndependentPagesEx)
+	{
+		kernel_MmAllocateIndependentPagesEx = intel_driver::FindPatternInSectionAtKernel(device_handle, (char*)"PAGELK", intel_driver::ntoskrnlAddr, 
+			(BYTE*)"\xE8\x00\x00\x00\x00\x48\x8B\xF0\x48\x85\xC0\x0F\x84\x00\x00\x00\x00\x44\x8B\xC5\x33\xD2\x48\x8B\xC8\xE8\x00\x00\x00\x00\x48\x8D\x46\x3F\x48\x83\xE0\xC0", 
+			(char*)"x????xxxxxxxx????xxxxxxxxx????xxxxxxxx");
+		if (!kernel_MmAllocateIndependentPagesEx) {
+			Log(L"[!] Failed to find MmAllocateIndependentPagesEx" << std::endl);
+			return 0;
+		}
+
+		kernel_MmAllocateIndependentPagesEx = (uint64_t)ResolveRelativeAddress(device_handle, (PVOID)kernel_MmAllocateIndependentPagesEx, 1, 5);
+		if (!kernel_MmAllocateIndependentPagesEx) {
+			Log(L"[!] Failed to find MmAllocateIndependentPagesEx" << std::endl);
+			return 0;
+		}
+	}
+
+	if (!intel_driver::CallKernelFunction(device_handle, &allocated_pages, kernel_MmAllocateIndependentPagesEx, size, -1, 0, 0))
+		return 0;
+
+	return allocated_pages;
+}
+
+bool intel_driver::MmFreeIndependentPages(HANDLE device_handle, uint64_t address, uint32_t size)
+{
+	static uint64_t kernel_MmFreeIndependentPages = 0;
+
+	if (!kernel_MmFreeIndependentPages)
+	{
+		kernel_MmFreeIndependentPages = intel_driver::FindPatternInSectionAtKernel(device_handle, (char*)"PAGE", intel_driver::ntoskrnlAddr, 
+			(BYTE*)"\xBA\x00\x60\x00\x00\x48\x8B\xCB\xE8\x00\x00\x00\x00\x48\x8D\x8B\x00\xF0\xFF\xFF", 
+			(char*)"xxxxxxxxx????xxxxxxx");
+		if (!kernel_MmFreeIndependentPages) {
+			Log(L"[!] Failed to find MmFreeIndependentPages" << std::endl);
+			return false;
+		}
+
+		kernel_MmFreeIndependentPages += 8;
+
+		kernel_MmFreeIndependentPages = (uint64_t)ResolveRelativeAddress(device_handle, (PVOID)kernel_MmFreeIndependentPages, 1, 5);
+		if (!kernel_MmFreeIndependentPages) {
+			Log(L"[!] Failed to find MmFreeIndependentPages" << std::endl);
+			return false;
+		}
+	}
+
+	uint64_t result{};
+	return intel_driver::CallKernelFunction(device_handle, &result, kernel_MmFreeIndependentPages, address, size);
+}
+
+BOOLEAN intel_driver::MmSetPageProtection(HANDLE device_handle, uint64_t address, uint32_t size, ULONG new_protect)
+{
+	if (!address)
+	{
+		Log(L"[!] Invalid address passed to MmSetPageProtection" << std::endl);
+		return FALSE;
+	}
+
+	static uint64_t kernel_MmSetPageProtection = 0;
+	
+	if (!kernel_MmSetPageProtection)
+	{
+		kernel_MmSetPageProtection = intel_driver::FindPatternInSectionAtKernel(device_handle, (char*)"PAGE", intel_driver::ntoskrnlAddr, 
+			(BYTE*)"\x41\xB8\x00\x00\x00\x00\x48\x00\x00\x00\x8B\x00\xE8\x00\x00\x00\x00\x84\xC0\x74\x09\x48\x81\xEB\x00\x00\x00\x00\xEB", 
+			(char*)"xx????x???x?x????xxxxxxx????x");
+		if (!kernel_MmSetPageProtection) {
+			Log(L"[!] Failed to find MmSetPageProtection" << std::endl);
+			return FALSE;
+		}
+
+		kernel_MmSetPageProtection += 12;
+
+		kernel_MmSetPageProtection = (uint64_t)ResolveRelativeAddress(device_handle, (PVOID)kernel_MmSetPageProtection, 1, 5);
+		if (!kernel_MmSetPageProtection) {
+			Log(L"[!] Failed to find MmSetPageProtection" << std::endl);
+			return FALSE;
+		}
+	}
+
+	BOOLEAN set_prot_status{};
+	if (!intel_driver::CallKernelFunction(device_handle, &set_prot_status, kernel_MmSetPageProtection, address, size, new_protect))
+		return FALSE;
+
+	return set_prot_status;
+}
+
 /*added by psec*/
 uint64_t intel_driver::MmAllocatePagesForMdl(HANDLE device_handle, LARGE_INTEGER LowAddress, LARGE_INTEGER HighAddress, LARGE_INTEGER SkipBytes, SIZE_T TotalBytes)
 {

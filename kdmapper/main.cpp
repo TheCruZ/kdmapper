@@ -55,6 +55,7 @@ int wmain(const int argc, wchar_t** argv) {
 
 	bool free = paramExists(argc, argv, L"free") > 0;
 	bool mdlMode = paramExists(argc, argv, L"mdl") > 0;
+	bool indPagesMode = paramExists(argc, argv, L"indPages") > 0;
 	bool passAllocationPtr = paramExists(argc, argv, L"PassAllocationPtr") > 0;
 
 	if (free) {
@@ -63,6 +64,10 @@ int wmain(const int argc, wchar_t** argv) {
 
 	if (mdlMode) {
 		Log(L"[+] Mdl memory usage enabled" << std::endl);
+	}
+
+	if (indPagesMode) {
+		Log(L"[+] Allocate Independent Pages mode enabled" << std::endl);
 	}
 
 	if (passAllocationPtr) {
@@ -101,8 +106,22 @@ int wmain(const int argc, wchar_t** argv) {
 		return -1;
 	}
 
+	kdmapper::AllocationMode mode = kdmapper::AllocationMode::AllocatePool;
+
+	if (mdlMode && indPagesMode) {
+		Log(L"[-] Too many allocation modes" << std::endl);
+		intel_driver::Unload(iqvw64e_device_handle);
+		return -1;
+	}
+	else if (mdlMode) {
+		mode = kdmapper::AllocationMode::AllocateMdl;
+	}
+	else if (indPagesMode) {
+		mode = kdmapper::AllocationMode::AllocateIndependentPages;
+	}
+
 	NTSTATUS exitCode = 0;
-	if (!kdmapper::MapDriver(iqvw64e_device_handle, raw_image.data(), 0, 0, free, true, mdlMode, passAllocationPtr, callbackExample, &exitCode)) {
+	if (!kdmapper::MapDriver(iqvw64e_device_handle, raw_image.data(), 0, 0, free, true, mode, passAllocationPtr, callbackExample, &exitCode)) {
 		Log(L"[-] Failed to map " << driver_path << std::endl);
 		intel_driver::Unload(iqvw64e_device_handle);
 		return -1;

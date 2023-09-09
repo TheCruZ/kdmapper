@@ -84,7 +84,7 @@ BOOLEAN utils::bDataCompare(const BYTE* pData, const BYTE* bMask, const char* sz
 	return (*szMask) == 0;
 }
 
-uintptr_t utils::FindPattern(uintptr_t dwAddress, uintptr_t dwLen, BYTE* bMask, char* szMask) {
+uintptr_t utils::FindPattern(uintptr_t dwAddress, uintptr_t dwLen, BYTE* bMask, const char* szMask) {
 	size_t max_len = dwLen - strlen(szMask);
 	for (uintptr_t i = 0; i < max_len; i++)
 		if (bDataCompare((BYTE*)(dwAddress + i), bMask, szMask))
@@ -92,7 +92,7 @@ uintptr_t utils::FindPattern(uintptr_t dwAddress, uintptr_t dwLen, BYTE* bMask, 
 	return 0;
 }
 
-PVOID utils::FindSection(char* sectionName, uintptr_t modulePtr, PULONG size) {
+PVOID utils::FindSection(const char* sectionName, uintptr_t modulePtr, PULONG size) {
 	size_t namelength = strlen(sectionName);
 	PIMAGE_NT_HEADERS headers = (PIMAGE_NT_HEADERS)(modulePtr + ((PIMAGE_DOS_HEADER)modulePtr)->e_lfanew);
 	PIMAGE_SECTION_HEADER sections = IMAGE_FIRST_SECTION(headers);

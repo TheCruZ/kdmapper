@@ -4,6 +4,7 @@
 #include <string>
 #include <filesystem>
 #include <atlstr.h>
+#include <memory>
 
 #include "intel_driver_resource.hpp"
 #include "service.hpp"
@@ -112,11 +113,12 @@ namespace intel_driver
 	PiDDBCacheEntry* LookupEntry(HANDLE device_handle, PRTL_AVL_TABLE PiDDBCacheTable, ULONG timestamp, const wchar_t * name);
 	PVOID ResolveRelativeAddress(HANDLE device_handle, _In_ PVOID Instruction, _In_ ULONG OffsetOffset, _In_ ULONG InstructionSize);
 
-	uintptr_t FindPatternAtKernel(HANDLE device_handle, uintptr_t dwAddress, uintptr_t dwLen, BYTE* bMask, char* szMask);
-	uintptr_t FindSectionAtKernel(HANDLE device_handle, char* sectionName, uintptr_t modulePtr, PULONG size);
-	uintptr_t FindPatternInSectionAtKernel(HANDLE device_handle, char* sectionName, uintptr_t modulePtr, BYTE* bMask, char* szMask);
+	uintptr_t FindPatternAtKernel(HANDLE device_handle, uintptr_t dwAddress, uintptr_t dwLen, BYTE* bMask, const char* szMask);
+	uintptr_t FindSectionAtKernel(HANDLE device_handle, const char* sectionName, uintptr_t modulePtr, PULONG size);
+	uintptr_t FindPatternInSectionAtKernel(HANDLE device_handle, const char* sectionName, uintptr_t modulePtr, BYTE* bMask, const char* szMask);
 
 	bool ClearKernelHashBucketList(HANDLE device_handle);
+	bool ClearWdFilterDriverList(HANDLE device_handle);
 
 	bool IsRunning();
 	HANDLE Load();

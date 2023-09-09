@@ -25,6 +25,7 @@ KDMapper is a simple tool that exploits iqvw64e.sys Intel driver to manually map
 	Clears MmUnloadedDrivers
 	Clears PiDDBCacheTable
 	Clears g_KernelHashBucketList
+	Clears Wdfilter RuntimeDriverList RuntimeDriverCount and RuntimeDriverArry
 	Use NtLoadDriver and NtUnloadDriver for less traces
 	Prevent load if \Device\Nal exists (Prevents BSOD)
 	Header section skipped while copying driver to kernel

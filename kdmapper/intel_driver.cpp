@@ -777,8 +777,7 @@ BOOLEAN intel_driver::RtlDeleteElementGenericTableAvl(HANDLE device_handle, PVOI
 		return false;
 	}
 
-	BOOLEAN out;
-
+	bool out;
 	return (CallKernelFunction(device_handle, &out, kernel_RtlDeleteElementGenericTableAvl, Table, Buffer) && out);
 }
 

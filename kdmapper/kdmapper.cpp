@@ -105,12 +105,14 @@ uint64_t kdmapper::MapDriver(HANDLE iqvw64e_device_handle, BYTE* data, ULONG64 p
 		kernel_image_base = intel_driver::AllocatePool(iqvw64e_device_handle, nt::POOL_TYPE::NonPagedPool, image_size);
 	}
 
-	do {
-		if (!kernel_image_base) {
-			Log(L"[-] Failed to allocate remote image in kernel" << std::endl);
-			break;
-		}
+	if (!kernel_image_base) {
+		Log(L"[-] Failed to allocate remote image in kernel" << std::endl);
 
+		VirtualFree(local_image_base, 0, MEM_RELEASE);
+		return 0;
+	}
+
+	do {
 		Log(L"[+] Image base has been allocated at 0x" << reinterpret_cast<void*>(kernel_image_base) << std::endl);
 
 		// Copy image headers
@@ -220,7 +222,28 @@ uint64_t kdmapper::MapDriver(HANDLE iqvw64e_device_handle, BYTE* data, ULONG64 p
 
 	VirtualFree(local_image_base, 0, MEM_RELEASE);
 
-	intel_driver::FreePool(iqvw64e_device_handle, kernel_image_base);
+	Log(L"[+] Freeing memory" << std::endl);
+	bool free_status = false;
+
+	if (mode == AllocationMode::AllocateMdl) {
+		free_status = intel_driver::MmUnmapLockedPages(iqvw64e_device_handle, kernel_image_base, mdlptr);
+		free_status = (!free_status ? false : intel_driver::MmFreePagesFromMdl(iqvw64e_device_handle, mdlptr));
+		free_status = (!free_status ? false : intel_driver::FreePool(iqvw64e_device_handle, mdlptr));
+	}
+	else if (mode == AllocationMode::AllocateIndependentPages)
+	{
+		free_status = intel_driver::MmFreeIndependentPages(iqvw64e_device_handle, kernel_image_base, image_size);
+	}
+	else {
+		free_status = intel_driver::FreePool(iqvw64e_device_handle, kernel_image_base);
+	}
+
+	if (free_status) {
+		Log(L"[+] Memory has been released" << std::endl);
+	}
+	else {
+		Log(L"[-] WARNING: Failed to free memory!" << std::endl);
+	}
 
 	return 0;
 }

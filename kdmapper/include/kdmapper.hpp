@@ -1,10 +1,8 @@
 #pragma once
 #include <Windows.h>
-#include <stdint.h>
 #include <iostream>
-#include <vector>
 #include <string>
-#include <filesystem>
+#include <stdint.h>
 
 #include "portable_executable.hpp"
 #include "utils.hpp"

@@ -2,14 +2,12 @@
 #include <Windows.h>
 #include <iostream>
 #include <string>
-#include <filesystem>
-#include <atlstr.h>
 #include <memory>
+#include <stdint.h>
 
 #include "intel_driver_resource.hpp"
 #include "service.hpp"
 #include "utils.hpp"
-#include <assert.h>
 
 namespace intel_driver
 {

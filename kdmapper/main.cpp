@@ -1,7 +1,11 @@
-#include "kdmapper.hpp"
-
-
 #ifndef KDLIBMODE
+
+#include <Windows.h>
+#include <string>
+#include <vector>
+#include <filesystem>
+
+#include "kdmapper.hpp"
 
 HANDLE iqvw64e_device_handle;
 

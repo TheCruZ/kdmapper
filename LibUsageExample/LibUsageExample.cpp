@@ -4,8 +4,13 @@
 // Check project properties -> Linker -> Input -> Additional Dependencies
 //
 
-#include <kdmapper.hpp>
+#include <Windows.h>
+#include <string>
+#include <vector>
 #include <filesystem>
+
+#include <kdmapper.hpp>
+
 
 HANDLE iqvw64e_device_handle;
 

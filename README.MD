@@ -51,3 +51,21 @@ A lot of people ask me about this errors loading the vulnerable driver, both are
 The certificate has been blocked as vulnerable and the mapper will return a status of STATUS_IMAGE_CERT_REVOKED. More info at [Microsoft](https://support.microsoft.com/en-au/topic/kb5020779-the-vulnerable-driver-blocklist-after-the-october-2022-preview-release-3fcbe13a-6013-4118-b584-fcfbc6a09936)
 
 Have Fun!!
+
+#### TODO just maybe interesting ideas
+
+if anyone interested in create a pull request
+
+Self cleaning of self execution ?
+
+* Registry User Assist
+* Prefetch (need to be deleted normally after it's update)
+* Recent files and AutomaticDestination
+* Registry RecentDocs
+* USN journal maybe?
+* Self deletion option?
+* Loaded driver deletion option?
+* SRUM may contain any information?
+* Shellbags in kdmapper named folders?
+
+Messages for common loading errors?

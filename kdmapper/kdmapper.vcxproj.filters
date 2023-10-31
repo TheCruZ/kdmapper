@@ -9,12 +9,31 @@
     <ClCompile Include="utils.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="utils.hpp" />
-    <ClInclude Include="intel_driver.hpp" />
-    <ClInclude Include="intel_driver_resource.hpp" />
-    <ClInclude Include="kdmapper.hpp" />
-    <ClInclude Include="nt.hpp" />
-    <ClInclude Include="portable_executable.hpp" />
-    <ClInclude Include="service.hpp" />
+    <ClInclude Include="include\utils.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\service.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\portable_executable.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\nt.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\kdmapper.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\intel_driver.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\intel_driver_resource.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="include">
+      <UniqueIdentifier>{ac359fba-b363-4b75-bd19-310104ec8f2c}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
 </Project>

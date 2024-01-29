@@ -131,10 +131,30 @@ bool intel_driver::ClearWdFilterDriverList(HANDLE device_handle) {
 		return false;
 	}
 
+	// MpCleanupDriverInfo->MpFreeDriverInfoEx 23110
+	/*
+		49 8B C9                      mov     rcx, r9         ; P
+		49 89 50 08                   mov     [r8+8], rdx
+		E8 FB F0 FD FF                call    MpFreeDriverInfoEx
+		48 8B 0D FC AA FA FF          mov     rcx, cs:qword_1C0021BF0
+		E9 21 FF FF FF                jmp     loc_1C007701A
+	*/
 	auto MpFreeDriverInfoExRef = FindPatternInSectionAtKernel(device_handle, "PAGE", WdFilter, (PUCHAR)"\x49\x8B\xC9\x00\x89\x00\x08\xE8\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xE9", "xxx?x?xx???????????x");
 	if (!MpFreeDriverInfoExRef) {
-		Log("[!] Failed to find WdFilter MpFreeDriverInfoEx" << std::endl);
-		return false;
+		// 24010 
+		/*
+			48 89 4A 08                   mov     [rdx+8], rcx
+			49 8B C8                      mov     rcx, r8         ; P
+			E8 C3 58 FE FF                call    sub_1C0065308
+			48 8B 0D 44 41 FA FF          mov     rcx, cs:qword_1C0023B90
+			E9 39 FF FF FF                jmp     loc_1C007F98A
+		*/
+		MpFreeDriverInfoExRef = FindPatternInSectionAtKernel(device_handle, "PAGE", WdFilter, (PUCHAR)"\x48\x89\x4A\x00\x49\x8b\x00\xE8\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xE9", "xxx?xx?x???????????x");
+		if (!MpFreeDriverInfoExRef) {
+			Log("[!] Failed to find WdFilter MpFreeDriverInfoEx" << std::endl);
+			return false;
+		}
+
 	}
 
 	MpFreeDriverInfoExRef += 0x7; // skip until call instruction

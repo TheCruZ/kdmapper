@@ -91,12 +91,9 @@ void PauseIfParentIsExplorer() {
 	DWORD explorerPid = 0;
 	GetWindowThreadProcessId(GetShellWindow(), &explorerPid);
 	DWORD parentPid = getParentProcess();
-	std::cout << "Explorer pid: " << explorerPid << std::endl;
-	std::cout << "Parent pid: " << parentPid << std::endl;
-	std::cout << "Current pid: " << GetCurrentProcessId() << std::endl;
 	if (parentPid == explorerPid) {
 		Log(L"[+] Pausing to allow for debugging" << std::endl);
-		Log(L"[+] Press enter to continue" << std::endl);
+		Log(L"[+] Press enter to close" << std::endl);
 		std::cin.get();
 	}
 }

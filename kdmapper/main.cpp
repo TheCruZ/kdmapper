@@ -58,7 +58,48 @@ bool callbackExample(ULONG64* param1, ULONG64* param2, ULONG64 allocationPtr, UL
 	return true;
 }
 
+DWORD getParentProcess()
+{
+	HANDLE hSnapshot;
+	PROCESSENTRY32 pe32;
+	DWORD ppid = 0, pid = GetCurrentProcessId();
 
+	hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+	__try {
+		if (hSnapshot == INVALID_HANDLE_VALUE) __leave;
+
+		ZeroMemory(&pe32, sizeof(pe32));
+		pe32.dwSize = sizeof(pe32);
+		if (!Process32First(hSnapshot, &pe32)) __leave;
+
+		do {
+			if (pe32.th32ProcessID == pid) {
+				ppid = pe32.th32ParentProcessID;
+				break;
+			}
+		} while (Process32Next(hSnapshot, &pe32));
+
+	}
+	__finally {
+		if (hSnapshot != INVALID_HANDLE_VALUE) CloseHandle(hSnapshot);
+	}
+	return ppid;
+}
+
+//Help people that don't understand how to open a console
+void PauseIfParentIsExplorer() {
+	DWORD explorerPid = 0;
+	GetWindowThreadProcessId(GetShellWindow(), &explorerPid);
+	DWORD parentPid = getParentProcess();
+	std::cout << "Explorer pid: " << explorerPid << std::endl;
+	std::cout << "Parent pid: " << parentPid << std::endl;
+	std::cout << "Current pid: " << GetCurrentProcessId() << std::endl;
+	if (parentPid == explorerPid) {
+		Log(L"[+] Pausing to allow for debugging" << std::endl);
+		Log(L"[+] Press enter to continue" << std::endl);
+		std::cin.get();
+	}
+}
 
 int wmain(const int argc, wchar_t** argv) {
 	SetUnhandledExceptionFilter(SimplestCrashHandler);
@@ -101,18 +142,22 @@ int wmain(const int argc, wchar_t** argv) {
 
 	if (!std::filesystem::exists(driver_path)) {
 		Log(L"[-] File " << driver_path << L" doesn't exist" << std::endl);
+		PauseIfParentIsExplorer();
 		return -1;
 	}
 
 	iqvw64e_device_handle = intel_driver::Load();
 
-	if (iqvw64e_device_handle == INVALID_HANDLE_VALUE)
+	if (iqvw64e_device_handle == INVALID_HANDLE_VALUE) {
+		PauseIfParentIsExplorer();
 		return -1;
+	}
 
 	std::vector<uint8_t> raw_image = { 0 };
 	if (!utils::ReadFileToMemory(driver_path, &raw_image)) {
 		Log(L"[-] Failed to read image to memory" << std::endl);
 		intel_driver::Unload(iqvw64e_device_handle);
+		PauseIfParentIsExplorer();
 		return -1;
 	}
 
@@ -121,6 +166,7 @@ int wmain(const int argc, wchar_t** argv) {
 	if (mdlMode && indPagesMode) {
 		Log(L"[-] Too many allocation modes" << std::endl);
 		intel_driver::Unload(iqvw64e_device_handle);
+		PauseIfParentIsExplorer();
 		return -1;
 	}
 	else if (mdlMode) {
@@ -134,11 +180,13 @@ int wmain(const int argc, wchar_t** argv) {
 	if (!kdmapper::MapDriver(iqvw64e_device_handle, raw_image.data(), 0, 0, free, true, mode, passAllocationPtr, callbackExample, &exitCode)) {
 		Log(L"[-] Failed to map " << driver_path << std::endl);
 		intel_driver::Unload(iqvw64e_device_handle);
+		PauseIfParentIsExplorer();
 		return -1;
 	}
 
 	if (!intel_driver::Unload(iqvw64e_device_handle)) {
 		Log(L"[-] Warning failed to fully unload vulnerable driver " << std::endl);
+		PauseIfParentIsExplorer();
 	}
 	Log(L"[+] success" << std::endl);
 }

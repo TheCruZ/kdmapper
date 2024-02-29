@@ -50,7 +50,16 @@ bool service::RegisterAndStart(const std::wstring& driver_path) {
 	RtlInitUnicodeString(&serviceStr, wdriver_reg_path.c_str());
 
 	Status = NtLoadDriver(&serviceStr);
+
+
 	Log("[+] NtLoadDriver Status 0x" << std::hex << Status << std::endl);
+
+	if (Status == 0xC0000603) { //STATUS_IMAGE_CERT_REVOKED
+		Log("[-] Your vulnerable driver list is enabled and have blocked the driver loading, you must disable vulnerable driver list to use kdmapper with intel driver" << std::endl);
+		Log("[-] Registry path to disable vulnerable driver list: HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Control\\CI\\Config" << std::endl);
+		Log("[-] Set 'VulnerableDriverBlocklistEnable' as dword to 0" << std::endl);
+	}
+	
 	
 	//Never should occur since kdmapper checks for "IsRunning" driver before
 	if (Status == 0xC000010E) {// STATUS_IMAGE_ALREADY_LOADED

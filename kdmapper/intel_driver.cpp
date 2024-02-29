@@ -154,6 +154,9 @@ bool intel_driver::ClearWdFilterDriverList(HANDLE device_handle) {
 			Log("[!] Failed to find WdFilter MpFreeDriverInfoEx" << std::endl);
 			return false;
 		}
+		else {
+			Log("[+] Found WdFilter MpFreeDriverInfoEx with second pattern" << std::endl);
+		}
 
 	}
 

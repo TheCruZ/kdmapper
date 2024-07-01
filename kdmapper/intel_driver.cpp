@@ -866,7 +866,7 @@ bool intel_driver::ClearPiDDBCacheTable(HANDLE device_handle) { //PiDDBCacheTabl
 			Log(L"[-] Warning PiDDBCacheTable not found" << std::endl);
 			return false;
 		} else {
-			Log(L"[+] PiDDBLock found with second pattern" << std::endl);
+			Log(L"[+] PiDDBCacheTable found with second pattern" << std::endl);
 			PiDDBCacheTablePtr += 2;//second pattern offset
 		}
 	}

@@ -59,6 +59,9 @@ bool service::RegisterAndStart(const std::wstring& driver_path) {
 		Log("[-] Registry path to disable vulnerable driver list: HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Control\\CI\\Config" << std::endl);
 		Log("[-] Set 'VulnerableDriverBlocklistEnable' as dword to 0" << std::endl);
 	}
+	else if (Status == 0xC0000022 || Status == 0xC000009A) { //STATUS_ACCESS_DENIED and STATUS_INSUFFICIENT_RESOURCES
+		Log("[-] Access Denied or Insufficient Resources (0x" << std::hex << Status << "), Probably some anticheat or antivirus running blocking the load of vulnerable driver" << std::endl);
+	}
 	
 	
 	//Never should occur since kdmapper checks for "IsRunning" driver before

@@ -84,6 +84,14 @@ HANDLE intel_driver::Load() {
 		return INVALID_HANDLE_VALUE;
 	}
 
+	//check MZ ntoskrnl.exe
+	IMAGE_DOS_HEADER dosHeader = { 0 };
+	if (!intel_driver::ReadMemory(result, intel_driver::ntoskrnlAddr, &dosHeader, sizeof(IMAGE_DOS_HEADER)) || dosHeader.e_magic != IMAGE_DOS_SIGNATURE) {
+		Log(L"[-] Can't exploit intel driver, is there any antivirus or anticheat running?" << std::endl);
+		intel_driver::Unload(result);
+		return INVALID_HANDLE_VALUE;
+	}
+
 	if (!intel_driver::ClearPiDDBCacheTable(result)) {
 		Log(L"[-] Failed to ClearPiDDBCacheTable" << std::endl);
 		intel_driver::Unload(result);
@@ -952,7 +960,6 @@ uintptr_t intel_driver::FindPatternAtKernel(HANDLE device_handle, uintptr_t dwAd
 	auto result = utils::FindPattern((uintptr_t)sectionData.get(), dwLen, bMask, szMask);
 
 	if (result <= 0) {
-		Log(L"[-] Can't find pattern" << std::endl);
 		return 0;
 	}
 	result = dwAddress - (uintptr_t)sectionData.get() + result;

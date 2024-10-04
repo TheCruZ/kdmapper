@@ -851,19 +851,32 @@ bool intel_driver::ClearPiDDBCacheTable(HANDLE device_handle) { //PiDDBCacheTabl
 	if (PiDDBLockPtr == NULL) { // PiDDBLock pattern changes a lot from version 1607 of windows and we will need a second pattern if we want to keep simple as posible
 		PiDDBLockPtr = FindPatternInSectionAtKernel(device_handle, "PAGE", intel_driver::ntoskrnlAddr, (PUCHAR)"\x48\x8B\x0D\x00\x00\x00\x00\x48\x85\xC9\x0F\x85\x00\x00\x00\x00\x48\x8D\x0D\x00\x00\x00\x00\xE8\x00\x00\x00\x00\xE8", "xxx????xxxxx????xxx????x????x"); // 48 8B 0D ? ? ? ? 48 85 C9 0F 85 ? ? ? ? 48 8D 0D ? ? ? ? E8 ? ? ? ? E8 build 22449+ (pattern can be improved but just fine for now)
 		if (PiDDBLockPtr == NULL) {
-			Log(L"[-] Warning PiDDBLock not found" << std::endl);
-			return false;
+			PiDDBLockPtr = FindPatternInSectionAtKernel(device_handle, "PAGE", intel_driver::ntoskrnlAddr, (PUCHAR)"\x8B\xD8\x85\xC0\x0F\x88\x00\x00\x00\x00\x65\x48\x8B\x04\x25\x00\x00\x00\x00\x48\x8D\x0D\x00\x00\x00\x00\xB2\x01\x66\xFF\x88\x00\x00\x00\x00\x90\xE8\x00\x00\x00\x00\x4C\x8B\x00\x24", "xxxxxx????xxxxx????xxx????xxxxx????xx????xx?x"); // 8B D8 85 C0 0F 88 ? ? ? ? 65 48 8B 04 25 ? ? ? ? 48 8D 0D ? ? ? ? B2 01 66 FF 88 ? ? ? ? 90 E8 ? ? ? ? 4C 8B ? 24 update for build 26100.1000
+			if (PiDDBLockPtr == NULL) {
+				Log(L"[-] Warning PiDDBLock not found" << std::endl);
+				return false;
+			} else {
+				Log(L"[+] PiDDBLock found with third pattern" << std::endl);
+				PiDDBLockPtr += 19;//third pattern offset
+			}
+		} else {
+			Log(L"[+] PiDDBLock found with second pattern" << std::endl);
+			PiDDBLockPtr += 16; //second pattern offset
 		}
-		Log(L"[+] PiDDBLock found with second pattern" << std::endl);
-		PiDDBLockPtr += 16; //second pattern offset
-	}
-	else {
+		
+	} else {
 		PiDDBLockPtr += 28; //first pattern offset
 	}
 
 	if (PiDDBCacheTablePtr == NULL) {
-		Log(L"[-] Warning PiDDBCacheTable not found" << std::endl);
-		return false;
+		PiDDBCacheTablePtr = FindPatternInSectionAtKernel(device_handle, "PAGE", intel_driver::ntoskrnlAddr, (PUCHAR)"\x48\x8B\xF9\x33\xC0\x48\x8D\x0D", "xxxxxxxx"); // 48 8B F9 33 C0 48 8D 0D
+		if (PiDDBCacheTablePtr == NULL) {
+			Log(L"[-] Warning PiDDBCacheTable not found" << std::endl);
+			return false;
+		} else {
+			Log(L"[+] PiDDBCacheTable found with second pattern" << std::endl);
+			PiDDBCacheTablePtr += 2;//second pattern offset
+		}
 	}
 
 	Log("[+] PiDDBLock Ptr 0x" << std::hex << PiDDBLockPtr << std::endl);

@@ -8,7 +8,7 @@ Mdl allocation writed by https://github.com/TygoL
 
 Independent Pages allocation written by https://github.com/Herooyyy/
 
-Tested from **Windows 10 1607** to **Windows 11 22449.1** :heavy_check_mark:
+Tested from **Windows 10 1607** to **Windows 11 26100.1882** :heavy_check_mark:
 
 Update mainly done for UnknownCheats Forum https://www.unknowncheats.me/forum/members/1117395.html
 

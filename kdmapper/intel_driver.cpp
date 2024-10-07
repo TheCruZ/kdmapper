@@ -29,6 +29,28 @@ bool intel_driver::IsRunning() {
 	return false;
 }
 
+//get Se debug privilege
+bool intel_driver::AcquireDebugPrivilege() {
+
+	HMODULE ntdll = GetModuleHandleA("ntdll.dll");
+	if (ntdll == NULL) {
+		return false;
+	}
+
+	auto RtlAdjustPrivilege = (nt::RtlAdjustPrivilege)GetProcAddress(ntdll, "RtlAdjustPrivilege");
+
+	ULONG SE_DEBUG_PRIVILEGE = 20UL;
+	BOOLEAN SeDebugWasEnabled;
+	NTSTATUS Status = RtlAdjustPrivilege(SE_DEBUG_PRIVILEGE, TRUE, FALSE, &SeDebugWasEnabled);
+	if (!NT_SUCCESS(Status)) {
+		Log("[-] Failed to acquire SE_DEBUG_PRIVILEGE" << std::endl);
+		return false;
+	}
+
+
+	return true;
+}
+
 HANDLE intel_driver::Load() {
 	srand((unsigned)time(NULL) * GetCurrentThreadId());
 
@@ -59,6 +81,12 @@ HANDLE intel_driver::Load() {
 
 	if (!utils::CreateFileFromMemory(driver_path, reinterpret_cast<const char*>(intel_driver_resource::driver), sizeof(intel_driver_resource::driver))) {
 		Log(L"[-] Failed to create vulnerable driver file" << std::endl);
+		return INVALID_HANDLE_VALUE;
+	}
+
+	if (!AcquireDebugPrivilege()) {
+		Log(L"[-] Failed to acquire SeDebugPrivilege" << std::endl);
+		_wremove(driver_path.c_str());
 		return INVALID_HANDLE_VALUE;
 	}
 

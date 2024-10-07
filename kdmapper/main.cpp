@@ -38,15 +38,14 @@ int paramExists(const int argc, wchar_t** argv, const wchar_t* param) {
 
 void help() {
 	Log(L"\r\n\r\n[!] Incorrect Usage!" << std::endl);
-	Log(L"[+] Usage: kdmapper.exe [--free][--mdl][--PassAllocationPtr] driver" << std::endl);
+	Log(L"[+] Usage: kdmapper.exe [--free][--PassAllocationPtr] driver" << std::endl);
 }
 
-bool callbackExample(ULONG64* param1, ULONG64* param2, ULONG64 allocationPtr, ULONG64 allocationSize, ULONG64 mdlptr) {
+bool callbackExample(ULONG64* param1, ULONG64* param2, ULONG64 allocationPtr, ULONG64 allocationSize) {
 	UNREFERENCED_PARAMETER(param1);
 	UNREFERENCED_PARAMETER(param2);
 	UNREFERENCED_PARAMETER(allocationPtr);
 	UNREFERENCED_PARAMETER(allocationSize);
-	UNREFERENCED_PARAMETER(mdlptr);
 	Log("[+] Callback example called" << std::endl);
 	
 	/*
@@ -102,16 +101,11 @@ int wmain(const int argc, wchar_t** argv) {
 	SetUnhandledExceptionFilter(SimplestCrashHandler);
 
 	bool free = paramExists(argc, argv, L"free") > 0;
-	bool mdlMode = paramExists(argc, argv, L"mdl") > 0;
 	bool indPagesMode = paramExists(argc, argv, L"indPages") > 0;
 	bool passAllocationPtr = paramExists(argc, argv, L"PassAllocationPtr") > 0;
 
 	if (free) {
 		Log(L"[+] Free pool memory after usage enabled" << std::endl);
-	}
-
-	if (mdlMode) {
-		Log(L"[+] Mdl memory usage enabled" << std::endl);
 	}
 
 	if (indPagesMode) {
@@ -160,16 +154,7 @@ int wmain(const int argc, wchar_t** argv) {
 
 	kdmapper::AllocationMode mode = kdmapper::AllocationMode::AllocatePool;
 
-	if (mdlMode && indPagesMode) {
-		Log(L"[-] Too many allocation modes" << std::endl);
-		intel_driver::Unload(iqvw64e_device_handle);
-		PauseIfParentIsExplorer();
-		return -1;
-	}
-	else if (mdlMode) {
-		mode = kdmapper::AllocationMode::AllocateMdl;
-	}
-	else if (indPagesMode) {
+	if (indPagesMode) {
 		mode = kdmapper::AllocationMode::AllocateIndependentPages;
 	}
 

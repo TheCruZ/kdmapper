@@ -38,7 +38,7 @@ int paramExists(const int argc, wchar_t** argv, const wchar_t* param) {
 
 void help() {
 	Log(L"\r\n\r\n[!] Incorrect Usage!" << std::endl);
-	Log(L"[+] Usage: kdmapper.exe [--free][--PassAllocationPtr] driver" << std::endl);
+	Log(L"[+] Usage: kdmapper.exe [--free|--indPages][--PassAllocationPtr] driver" << std::endl);
 }
 
 bool callbackExample(ULONG64* param1, ULONG64* param2, ULONG64 allocationPtr, ULONG64 allocationSize) {
@@ -110,6 +110,12 @@ int wmain(const int argc, wchar_t** argv) {
 
 	if (indPagesMode) {
 		Log(L"[+] Allocate Independent Pages mode enabled" << std::endl);
+	}
+
+	if (free && indPagesMode) {
+		Log(L"[-] Can't use --free and --indPages at the same time" << std::endl);
+		help();
+		return -1;
 	}
 
 	if (passAllocationPtr) {

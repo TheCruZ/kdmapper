@@ -16,6 +16,7 @@
 #include <fstream>
 
 #include "nt.hpp"
+#include "SymbolsInfoClass.hpp"
 
 namespace utils
 {

@@ -1,9 +1,10 @@
 #ifndef KDLIBMODE
 
-#include <Windows.h>
+//#include <Windows.h>
 #include <string>
 #include <vector>
 #include <filesystem>
+
 
 #include "kdmapper.hpp"
 
@@ -34,11 +35,6 @@ int paramExists(const int argc, wchar_t** argv, const wchar_t* param) {
 		}
 	}
 	return -1;
-}
-
-void help() {
-	Log(L"\r\n\r\n[!] Incorrect Usage!" << std::endl);
-	Log(L"[+] Usage: kdmapper.exe [--free|--indPages][--PassAllocationPtr] driver" << std::endl);
 }
 
 bool callbackExample(ULONG64* param1, ULONG64* param2, ULONG64 allocationPtr, ULONG64 allocationSize) {
@@ -87,6 +83,7 @@ DWORD getParentProcess()
 
 //Help people that don't understand how to open a console
 void PauseIfParentIsExplorer() {
+#ifndef DEBUG
 	DWORD explorerPid = 0;
 	GetWindowThreadProcessId(GetShellWindow(), &explorerPid);
 	DWORD parentPid = getParentProcess();
@@ -95,10 +92,28 @@ void PauseIfParentIsExplorer() {
 		Log(L"[+] Press enter to close" << std::endl);
 		std::cin.get();
 	}
+#else
+	Log(L"[+] Pausing to allow for debugging" << std::endl);
+	Log(L"[+] Press enter to close" << std::endl);
+	std::cin.get();
+#endif
+}
+
+void help() {
+	Log(L"\r\n\r\n[!] Incorrect Usage!" << std::endl);
+	Log(L"[+] Usage: kdmapper.exe [--free|--indPages][--PassAllocationPtr] driver" << std::endl);
+	PauseIfParentIsExplorer();
 }
 
 int wmain(const int argc, wchar_t** argv) {
 	SetUnhandledExceptionFilter(SimplestCrashHandler);
+
+	CSymInfo SymInfo(&SymbolsInfoArray);
+	if (!SymInfo.m_IsValid) {
+		Log(L"[-] Error: Failed To Get Symbols Info.\n");
+		PauseIfParentIsExplorer();
+		return -1;
+	}
 
 	bool free = paramExists(argc, argv, L"free") > 0;
 	bool indPagesMode = paramExists(argc, argv, L"indPages") > 0;
@@ -177,6 +192,10 @@ int wmain(const int argc, wchar_t** argv) {
 		PauseIfParentIsExplorer();
 	}
 	Log(L"[+] success" << std::endl);
+
+#ifdef DEBUG
+	PauseIfParentIsExplorer();
+#endif
 }
 
 #endif

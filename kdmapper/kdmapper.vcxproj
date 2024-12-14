@@ -75,21 +75,27 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='lib-Release|x64'">
     <IncludePath>$(ProjectDir)include;$(IncludePath)</IncludePath>
-    <TargetName>$(ProjectName)_$(Configuration)</TargetName>
-    <OutDir>$(SolutionDir)$(Platform)\lib\</OutDir>
+    <TargetName>$(ProjectName)</TargetName>
+    <OutDir>$(SolutionDir)$(Platform)Lib\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)$(Platform)Lib\Intermediate\$(ProjectName)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='lib-Debug|x64'">
     <IncludePath>$(ProjectDir)include;$(IncludePath)</IncludePath>
     <TargetName>$(ProjectName)_$(Configuration)</TargetName>
-    <OutDir>$(SolutionDir)$(Platform)\lib\</OutDir>
+    <OutDir>$(SolutionDir)$(Platform)Lib\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)$(Platform)Lib\Intermediate\$(ProjectName)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <IncludePath>$(ProjectDir)include;$(IncludePath)</IncludePath>
-    <TargetName>$(ProjectName)_$(Configuration)</TargetName>
+    <TargetName>$(ProjectName)</TargetName>
+    <OutDir>$(SolutionDir)Bin\</OutDir>
+    <IntDir>$(SolutionDir)Intermediate\$(ProjectName)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <IncludePath>$(ProjectDir)include;$(IncludePath)</IncludePath>
     <TargetName>$(ProjectName)_$(Configuration)</TargetName>
+    <OutDir>$(SolutionDir)Bin\</OutDir>
+    <IntDir>$(SolutionDir)Intermediate\$(ProjectName)\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -99,6 +105,7 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalOptions>/D "DEBUG" %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <UACExecutionLevel>RequireAdministrator</UACExecutionLevel>
@@ -114,6 +121,7 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
       <TreatWarningAsError>false</TreatWarningAsError>
       <PreprocessorDefinitions>KDLIBMODE;_UNICODE;UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalOptions>/D "DEBUG" %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <UACExecutionLevel>RequireAdministrator</UACExecutionLevel>
@@ -165,15 +173,19 @@
     <ClCompile Include="kdmapper.cpp" />
     <ClCompile Include="portable_executable.cpp" />
     <ClCompile Include="service.cpp" />
+    <ClCompile Include="SymbolsHandler.cpp" />
     <ClCompile Include="utils.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="include\DataStructs.h" />
     <ClInclude Include="include\intel_driver.hpp" />
     <ClInclude Include="include\intel_driver_resource.hpp" />
     <ClInclude Include="include\kdmapper.hpp" />
     <ClInclude Include="include\nt.hpp" />
     <ClInclude Include="include\portable_executable.hpp" />
     <ClInclude Include="include\service.hpp" />
+    <ClInclude Include="include\SymbolsHandler.h" />
+    <ClInclude Include="include\SymbolsInfoClass.hpp" />
     <ClInclude Include="include\utils.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

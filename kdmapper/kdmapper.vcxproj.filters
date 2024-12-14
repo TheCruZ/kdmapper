@@ -7,6 +7,7 @@
     <ClCompile Include="portable_executable.cpp" />
     <ClCompile Include="service.cpp" />
     <ClCompile Include="utils.cpp" />
+    <ClCompile Include="SymbolsHandler.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\utils.hpp">
@@ -30,6 +31,9 @@
     <ClInclude Include="include\intel_driver_resource.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\SymbolsInfoClass.hpp" />
+    <ClInclude Include="include\SymbolsHandler.h" />
+    <ClInclude Include="include\DataStructs.h" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="include">

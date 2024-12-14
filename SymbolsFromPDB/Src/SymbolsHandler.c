@@ -31,6 +31,7 @@ BOOLEAN GenerateOffsetFile()
 
 	for(int FunctionsInfoIdx = 0 ; FunctionsInfoIdx < Elements_Count(SymsData, SYMBOLS_DATA) ;++FunctionsInfoIdx)
 	{
+		printf("\n");
 		if (!InitKernelSymbolsList(SymsData[FunctionsInfoIdx].PDBFileName, &SymsData[FunctionsInfoIdx].SymbolsInfoArray))
 		{
 			printf("Error: Failed To Get One Or More Function Offset.\n");
@@ -43,7 +44,7 @@ BOOLEAN GenerateOffsetFile()
 
 	if (!File || File == INVALID_HANDLE_VALUE)
 	{
-		printf("Error: Failed To Create SymsData Offset File.\n");
+		printf("Error: Failed To Create Symbols Offset File.\n");
 		return FALSE;
 	}
 
@@ -110,7 +111,7 @@ BOOLEAN GenerateOffsetFile()
 
 	if (!IsWritten)
 	{
-		printf("Error: Failed To Write To SymsData Offset File.\n");
+		printf("Error: Failed To Write To Symbols Offset File.\n");
 		return FALSE;
 	}
 	return TRUE;
@@ -174,7 +175,7 @@ BOOLEAN InitKernelSymbolsList(
 
 
 		// Load symbols for the module 
-		printf("Loading symbols from %s ... \n",pFileName);
+		printf("-> Loading Symbols From %s ... \n",pFileName);
 		DWORD64 ModBase = SymLoadModule64(
 			GetCurrentProcess(), // Process handle of the current process 
 			NULL,                // Handle to the module's image file (not needed)

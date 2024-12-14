@@ -11,7 +11,7 @@
 
 #include "DataStructs.h"
 
-#define FUNCOFFSET_PATH	(PCSTR)".\\FunctionsOffset.txt"
+#define FUNCOFFSET_PATH	(PCSTR)".\\SymbolsOffset.txt"
 
 #ifdef DEBUG
 #define SYM_FROM_PDB_EXE (PCSTR)"SymbolsFromPDB_Debug.exe"

@@ -15,6 +15,6 @@ int main()
 		system("pause");
 		return -1;
 	}
-	printf("-> Successfully Generated Offsets File.\n");
+	printf("\n>> Successfully Generated Offsets File. <<\n");
 	return 0;
 }

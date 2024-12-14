@@ -43,7 +43,7 @@ set /a "Index=0"
 			echo Symbols Conflict Deleting %MS_Files%%Target% And Retrying
 			echo #################################
 
-			rmdir  /s /q %MS_Files%%Target%
+			rmdir /s /q %MS_Files%%Target%
 			if %ERRORLEVEL% NEQ 0 ( 
 				pause
 				exit %ERRORLEVEL% 

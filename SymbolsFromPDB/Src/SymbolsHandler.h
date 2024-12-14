@@ -26,7 +26,7 @@
 #define WDFILTER_PATH		".\\Tools\\Symbols\\WdFilter.pdb"
 #define CIDLL_PATH			".\\Tools\\Symbols\\ci.pdb"
 
-#define FUNCOFFSET_PATH		"FunctionsOffset.txt"
+#define FUNCOFFSET_PATH		"SymbolsOffset.txt"
 
 
 

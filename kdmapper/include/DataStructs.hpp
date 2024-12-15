@@ -4,11 +4,13 @@
 #####################
 */
 
+//for use in KDMapper
+
 #pragma once
 
 #define Elements_Count(Array,Type) (sizeof(Array) / sizeof(Type))
 
-//for kdmapper
+
 typedef struct _SYM_INFO
 {
 	PCSTR SymbolName;

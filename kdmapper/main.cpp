@@ -108,12 +108,14 @@ void help() {
 int wmain(const int argc, wchar_t** argv) {
 	SetUnhandledExceptionFilter(SimplestCrashHandler);
 
+#ifdef PDB_OFFSETS
 	CSymInfo SymInfo(&SymbolsInfoArray);
 	if (!SymInfo.m_IsValid) {
 		Log(L"[-] Error: Failed To Get Symbols Info.\n");
 		PauseIfParentIsExplorer();
 		return -1;
 	}
+#endif
 
 	bool free = paramExists(argc, argv, L"free") > 0;
 	bool indPagesMode = paramExists(argc, argv, L"indPages") > 0;
@@ -193,9 +195,9 @@ int wmain(const int argc, wchar_t** argv) {
 	}
 	Log(L"[+] success" << std::endl);
 
-#ifdef DEBUG
+//#ifdef DEBUG
 	PauseIfParentIsExplorer();
-#endif
+//#endif
 }
 
 #endif

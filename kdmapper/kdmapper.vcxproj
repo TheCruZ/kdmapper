@@ -177,15 +177,14 @@
     <ClCompile Include="utils.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="include\DataStructs.h" />
+    <ClInclude Include="include\DataStructs.hpp" />
     <ClInclude Include="include\intel_driver.hpp" />
     <ClInclude Include="include\intel_driver_resource.hpp" />
     <ClInclude Include="include\kdmapper.hpp" />
     <ClInclude Include="include\nt.hpp" />
     <ClInclude Include="include\portable_executable.hpp" />
     <ClInclude Include="include\service.hpp" />
-    <ClInclude Include="include\SymbolsHandler.h" />
-    <ClInclude Include="include\SymbolsInfoClass.hpp" />
+    <ClInclude Include="include\SymbolsHandler.hpp" />
     <ClInclude Include="include\utils.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

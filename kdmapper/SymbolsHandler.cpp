@@ -1,6 +1,8 @@
-#include "SymbolsHandler.h"
+#include "SymbolsHandler.hpp"
 
-//for use in kdmapper 
+//for use in KDMapper
+
+#ifdef PDB_OFFSETS
 
 SYM_INFO_ARRAY SymbolsInfoArray = { NULL };
 
@@ -216,3 +218,5 @@ DWORD GetSymbolOffsetByName(IN PSYM_INFO_ARRAY pSymInfoArray, IN PCSTR SymName)
 	DWORD Hash = Crc32Str(SymName);
 	return GetSymbolOffsetByHash(pSymInfoArray, Hash);
 }
+
+#endif

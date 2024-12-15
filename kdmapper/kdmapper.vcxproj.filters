@@ -31,9 +31,8 @@
     <ClInclude Include="include\intel_driver_resource.hpp">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\SymbolsInfoClass.hpp" />
-    <ClInclude Include="include\SymbolsHandler.h" />
-    <ClInclude Include="include\DataStructs.h" />
+    <ClInclude Include="include\SymbolsHandler.hpp" />
+    <ClInclude Include="include\DataStructs.hpp" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="include">

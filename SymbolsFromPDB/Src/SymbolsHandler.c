@@ -132,7 +132,6 @@ BOOLEAN InitKernelSymbolsList(
 	BOOL Result = TRUE;
 
 	// Set options 
-
 	DWORD Options = SymGetOptions();
 
 	// SYMOPT_DEBUG option asks DbgHelp to print additional troubleshooting 
@@ -140,7 +139,6 @@ BOOLEAN InitKernelSymbolsList(
 	// to view the messages 
 
 	Options |= SYMOPT_DEBUG;
-
 	SymSetOptions(Options);
 
 	// Initialize DbgHelp and load symbols for all modules of the current process 
@@ -160,7 +158,6 @@ BOOLEAN InitKernelSymbolsList(
 	do
 	{
 		// Determine the base address and the file size 
-
 		const CHAR* pFileName = FilePath;
 
 		DWORD64   BaseAddr = 0;
@@ -172,7 +169,6 @@ BOOLEAN InitKernelSymbolsList(
 			Result = FALSE;
 			break;
 		}
-
 
 		// Load symbols for the module 
 		printf("-> Loading Symbols From %s ... \n",pFileName);
@@ -195,7 +191,6 @@ BOOLEAN InitKernelSymbolsList(
 #ifndef NDEBUG
 		printf("Load address: %I64x \n", ModBase);
 #endif
-
 		// Obtain and display information about loaded symbols 
 #ifndef NDEBUG
 		ShowSymbolInfo(ModBase);
@@ -228,12 +223,9 @@ BOOLEAN InitKernelSymbolsList(
 
 				//ShowSymbolDetails(sip.si);
 			}
-
 		}
 		// Unload symbols for the module 
-
 		bRet = SymUnloadModule64(GetCurrentProcess(), ModBase);
-
 		if (!bRet)
 		{
 			printf("Error: Unload Symbols failed. Error code: %u \n", GetLastError());
@@ -241,20 +233,15 @@ BOOLEAN InitKernelSymbolsList(
 
 	} while (0);
 
-
 	// Deinitialize DbgHelp 
-
 	bRet = SymCleanup(GetCurrentProcess());
-
 	if (!bRet)
 	{
 		printf("Error: Sym Cleanup failed. Error code: %u \n", GetLastError());
 		return 0;
 	}
 
-
 	// Complete 
-
 	return Result;
 }
 
@@ -275,20 +262,15 @@ BOOLEAN GetFileParams(IN
 		return FALSE;
 	}
 
-
 	// Determine the extension of the file 
-
 	CHAR szFileExt[_MAX_EXT] = { 0 };
 
 	_splitpath_s(pFileName, NULL, 0, NULL, 0, NULL, 0, szFileExt, _MAX_EXT);
 
-
 	// Is it .PDB file ? 
-
 	if (_stricmp(szFileExt, ".PDB") == 0)
 	{
 		// Yes, it is a .PDB file 
-
 		// Determine its size, and use a dummy base address 
 
 		*BaseAddr = 0x10000000; // it can be any non-zero value, but if we load symbols 
@@ -300,24 +282,17 @@ BOOLEAN GetFileParams(IN
 		{
 			return FALSE;
 		}
-
 	}
 	else
 	{
 		// It is not a .PDB file 
-
 		// Base address and file size can be 0 
-
 		*BaseAddr = 0;
 		*FileSize = 0;
 		return FALSE;
 	}
-
-
 	// Complete 
-
 	return TRUE;
-
 }
 
 BOOLEAN _GetFileSize(
@@ -325,15 +300,12 @@ BOOLEAN _GetFileSize(
 	OUT DWORD* FileSize)
 {
 	// Check parameters 
-
 	if (!pFileName || !FileSize)
 	{
 		return FALSE;
 	}
 
-
 	// Open the file 
-
 	HANDLE hFile = CreateFileA(pFileName, GENERIC_READ, FILE_SHARE_READ,
 		NULL, OPEN_EXISTING, 0, NULL);
 
@@ -343,31 +315,22 @@ BOOLEAN _GetFileSize(
 		return FALSE;
 	}
 
-
 	// Obtain the size of the file 
-
 	*FileSize = GetFileSize(hFile, NULL);
-
 	if (*FileSize == INVALID_FILE_SIZE)
 	{
 		printf("GetFileSize() failed. Error: %u \n", GetLastError());
 		// and continue ... 
 	}
 
-
 	// Close the file 
-
 	if (!CloseHandle(hFile))
 	{
 		printf("CloseHandle() failed. Error: %u \n", GetLastError());
 		// and continue ... 
 	}
-
-
 	// Complete 
-
 	return (*FileSize != INVALID_FILE_SIZE);
-
 }
 
 #ifndef NDEBUG
@@ -375,7 +338,6 @@ void ShowSymbolInfo(
 	IN uintptr_t ModBase)
 {
 	// Get module information 
-
 	IMAGEHLP_MODULE ModuleInfo;
 
 	memset(&ModuleInfo, 0, sizeof(ModuleInfo));
@@ -383,18 +345,14 @@ void ShowSymbolInfo(
 	ModuleInfo.SizeOfStruct = sizeof(ModuleInfo);
 
 	BOOL bRet = SymGetModuleInfo64(GetCurrentProcess(), ModBase, &ModuleInfo);
-
 	if (!bRet)
 	{
 		printf("Error: SymGetModuleInfo64() failed. Error code: %u \n", GetLastError());
 		return;
 	}
 
-
 	// Display information about symbols 
-
-		// Kind of symbols 
-
+	// Kind of symbols 
 	switch (ModuleInfo.SymType)
 	{
 	case SymNone:
@@ -439,21 +397,18 @@ void ShowSymbolInfo(
 	}
 
 	// Image name 
-
 	if (strlen(ModuleInfo.ImageName) > 0)
 	{
 		printf("Image name: %s \n", ModuleInfo.ImageName);
 	}
 
 	// Loaded image name 
-
 	if (strlen(ModuleInfo.LoadedImageName) > 0)
 	{
 		printf("Loaded image name: %s \n", ModuleInfo.LoadedImageName);
 	}
 
 	// Loaded PDB name 
-
 	if (strlen(ModuleInfo.LoadedPdbName) > 0)
 	{
 		printf("PDB file name: %s \n", ModuleInfo.LoadedPdbName);
@@ -462,7 +417,6 @@ void ShowSymbolInfo(
 	// Is debug information unmatched ? 
 	// (It can only happen if the debug information is contained 
 	// in a separate file (.DBG or .PDB) 
-
 	if (ModuleInfo.PdbUnmatched || ModuleInfo.DbgUnmatched)
 	{
 		printf("Warning: Unmatched symbols. \n");
@@ -470,26 +424,19 @@ void ShowSymbolInfo(
 
 	// Contents 
 
-		// Line numbers available ? 
-
+	// Line numbers available ? 
 	printf("Line numbers: %s \n", ModuleInfo.LineNumbers ? "Available" : "Not available");
 
 	// Global symbols available ? 
-
 	printf("Global symbols: %s \n", ModuleInfo.GlobalSymbols ? "Available" : "Not available");
 
 	// Type information available ? 
-
 	printf("Type information: %s \n", ModuleInfo.TypeInfo ? "Available" : "Not available");
 
 	// Source indexing available ? 
-
 	printf("Source indexing: %s \n", ModuleInfo.SourceIndexed ? "Yes" : "No");
 
 	// Public symbols available ? 
-
 	printf("Public symbols: %s \n", ModuleInfo.Publics ? "Available" : "Not available");
-
-
 }
 #endif

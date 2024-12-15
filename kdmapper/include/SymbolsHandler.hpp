@@ -17,7 +17,7 @@
 //This macro is used to enable the use of the SymbolsHandler functions,if for any reasons you don't want to use PDB Offsets, you can still use the original method of sig scanning the kernel to get the target addresses
 ///*#####################*/
 
-//#define PDB_OFFSETS
+#define PDB_OFFSETS
 
 ///*#####################*/
 ///////////////////////////////////

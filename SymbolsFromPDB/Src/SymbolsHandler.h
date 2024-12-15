@@ -19,16 +19,11 @@
 
 
 
-
-
-//#define _CRT_SECURE_NO_WARNINGS
 #define NTOSKRNL_PATH		".\\Tools\\Symbols\\ntkrnlmp.pdb"
 #define WDFILTER_PATH		".\\Tools\\Symbols\\WdFilter.pdb"
 #define CIDLL_PATH			".\\Tools\\Symbols\\ci.pdb"
 
 #define FUNCOFFSET_PATH		"SymbolsOffset.txt"
-
-
 
 
 BOOLEAN GenerateOffsetFile(

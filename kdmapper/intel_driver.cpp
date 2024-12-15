@@ -45,7 +45,6 @@ bool intel_driver::AcquireDebugPrivilege() {
 		return false;
 	}
 
-
 	return true;
 }
 
@@ -213,7 +212,6 @@ bool intel_driver::ClearWdFilterDriverList(HANDLE device_handle) {
 		else {
 			Log("[+] Found WdFilter MpFreeDriverInfoEx with second pattern" << std::endl);
 		}
-
 	}
 
 	MpFreeDriverInfoExRef += 0x7; // skip until call instruction

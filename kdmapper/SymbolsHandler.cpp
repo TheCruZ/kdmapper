@@ -32,7 +32,7 @@ BOOL GetSymbolsInfoFromFile(OUT PSYM_INFO_ARRAY pSymInfoArray)
 
 	if (!pSymInfoArray)
 	{
-		printf("[-] Error: MiniSymInfoArray Ptr is NULL.\n");
+		printf("[-] Error: SymInfoArray Ptr is NULL.\n");
 		return FALSE;
 	}
 	pSymInfoArray->SymbolsArray = NULL;
@@ -90,23 +90,22 @@ BOOL GetSymbolsInfoFromFile(OUT PSYM_INFO_ARRAY pSymInfoArray)
 	}
 
 	Index = 0;
-	PSYM_INFO MiniSymInfoArray = (PSYM_INFO)malloc(sizeof(SYM_INFO) * LinesCount);
-	if (!MiniSymInfoArray)
+	PSYM_INFO SymInfoArray = (PSYM_INFO)malloc(sizeof(SYM_INFO) * LinesCount);
+	if (!SymInfoArray)
 	{
 		printf("[-] Error: Failed To Allocate Memory For Symbols Info Array.\n");
 		free(Buffer);
 		return 0;
 	}
-	memset(MiniSymInfoArray, 0, sizeof(SYM_INFO) * LinesCount);
+	memset(SymInfoArray, 0, sizeof(SYM_INFO) * LinesCount);
 
-	BOOL IsComma = FALSE;//for simple check that the file has at least a valid line 
 	SIZE_T Count = 0;
 	SIZE_T Line = 0;
+	SIZE_T CommaCount = 0; 
 	char* SymName = NULL;
 	do {
 		if (Buffer[Index] == ',')
 		{
-			IsComma = TRUE;
 			SymName = (PCHAR)malloc(Count + 1);
 			if (!SymName)
 			{
@@ -115,17 +114,18 @@ BOOL GetSymbolsInfoFromFile(OUT PSYM_INFO_ARRAY pSymInfoArray)
 			}
 			memcpy(SymName, &Buffer[Index - Count], Count);
 			SymName[Count] = '\0';
-			MiniSymInfoArray[Line].SymbolName = SymName;
-			MiniSymInfoArray[Line].Crc32Hash = Crc32Str(SymName);
+			SymInfoArray[Line].SymbolName = SymName;
+			SymInfoArray[Line].Crc32Hash = Crc32Str(SymName);
 			SymName = NULL;
 			Count = 0;
+			++CommaCount;
 		}
 		else if (Buffer[Index] == '\n')
 		{
 			Buffer[Index] = '\0';
 			DWORD Offset = NULL;
 			sscanf_s((PCSTR)(Buffer + Index - Count), "0x%X", &Offset);
-			MiniSymInfoArray[Line].SymbolOffset = Offset;
+			SymInfoArray[Line].SymbolOffset = Offset;
 
 			++Line;
 			Count = 0;
@@ -140,20 +140,22 @@ BOOL GetSymbolsInfoFromFile(OUT PSYM_INFO_ARRAY pSymInfoArray)
 
 	free(Buffer);
 
-	if ((Index != FileSize) || !Line || !IsComma)
+	if ((Index != FileSize) || Line != CommaCount || !Line)
 	{
 		for (SIZE_T i = 0; i < Line; ++i)
 		{
-			if (MiniSymInfoArray[i].SymbolName)
+			if (SymInfoArray[i].SymbolName)
 			{
-				free((PVOID)MiniSymInfoArray[i].SymbolName);
-				MiniSymInfoArray[i].SymbolName = NULL;
+				free((PVOID)SymInfoArray[i].SymbolName);
+				SymInfoArray[i].SymbolName = NULL;
 			}
 		}
+		free(SymInfoArray);
+		SymInfoArray = NULL;
 		return 0;
 	}
 
-	pSymInfoArray->SymbolsArray = MiniSymInfoArray;
+	pSymInfoArray->SymbolsArray = SymInfoArray;
 	pSymInfoArray->ElementsCount = Line;
 	return 1;
 }
@@ -199,7 +201,7 @@ DWORD GetSymbolOffsetByHash(IN PSYM_INFO_ARRAY pSymInfoArray, IN DWORD SymHash)
 	if (!SymInfoArray)
 	{
 		printf("[-] Error: Failed To Sym Offset, The Sym Info Array Is Empty.\n");
-		return FALSE;
+		return 0;
 	}
 
 	for (SIZE_T i = 0; i < pSymInfoArray->ElementsCount; ++i)

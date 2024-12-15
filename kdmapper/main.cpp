@@ -46,7 +46,7 @@ bool callbackExample(ULONG64* param1, ULONG64* param2, ULONG64 allocationPtr, UL
 	
 	/*
 	This callback occurs before call driver entry and
-	can be usefull to pass more customized params in 
+	can be useful to pass more customized params in 
 	the last step of the mapping procedure since you 
 	know now the mapping address and other things
 	*/
@@ -195,9 +195,9 @@ int wmain(const int argc, wchar_t** argv) {
 	}
 	Log(L"[+] success" << std::endl);
 
-//#ifdef DEBUG
+#ifdef DEBUG
 	PauseIfParentIsExplorer();
-//#endif
+#endif
 }
 
 #endif

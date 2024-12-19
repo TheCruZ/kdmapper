@@ -76,7 +76,7 @@ DWORD getParentProcess()
 
 	}
 	__finally {
-		if (hSnapshot != INVALID_HANDLE_VALUE) CloseHandle(hSnapshot);
+		if (hSnapshot && hSnapshot != INVALID_HANDLE_VALUE) CloseHandle(hSnapshot);
 	}
 	return ppid;
 }
@@ -101,7 +101,11 @@ void PauseIfParentIsExplorer() {
 
 void help() {
 	Log(L"\r\n\r\n[!] Incorrect Usage!" << std::endl);
-	Log(L"[+] Usage: kdmapper.exe [--free|--indPages][--PassAllocationPtr] driver" << std::endl);
+#ifdef PDB_OFFSETS
+	Log(L"[+] Usage: kdmapper.exe [--DontUpdateOffset | --OffsetsPath \"FilePath\"][--free | --indPages][--PassAllocationPtr] driver" << std::endl); 
+#else
+	Log(L"[+] Usage: kdmapper.exe [--free | --indPages][--PassAllocationPtr] driver" << std::endl);
+#endif
 	PauseIfParentIsExplorer();
 }
 
@@ -109,7 +113,19 @@ int wmain(const int argc, wchar_t** argv) {
 	SetUnhandledExceptionFilter(SimplestCrashHandler);
 
 #ifdef PDB_OFFSETS
-	CSymInfo SymInfo(&SymbolsInfoArray);
+	bool UpdateOffset = !(paramExists(argc, argv, L"DontUpdateOffset") > 0);
+	int FilePathParamIdx = paramExists(argc, argv, L"OffsetsPath");
+	if (FilePathParamIdx > 0)
+	{
+		SymbolsOffsetFilePath = argv[FilePathParamIdx + 1];
+#ifdef UNICODE
+		printf("[+] Setting Offsets File Path To: %ls\n", SymbolsOffsetFilePath);
+#else
+		printf("[+] Setting Offsets File Path To: %s\n", SymbolsOffsetFilePath);
+#endif
+	}
+
+	CSymInfo SymInfo(&SymbolsInfoArray, UpdateOffset);
 	if (!SymInfo.m_IsValid) {
 		Log(L"[-] Error: Failed To Get Symbols Info.\n");
 		PauseIfParentIsExplorer();

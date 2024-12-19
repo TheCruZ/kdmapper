@@ -4,9 +4,10 @@
 
 #ifdef PDB_OFFSETS
 
-SYM_INFO_ARRAY SymbolsInfoArray = { NULL };
+std::vector<SYM_INFO> SymbolsInfoArray{};
+PTCHAR SymbolsOffsetFilePath = NULL;
 
-DWORD Crc32Str(IN PCSTR Str)
+inline DWORD Crc32Str(IN PCSTR Str)
 {
 	if (!Str)
 		return 0;
@@ -22,57 +23,89 @@ DWORD Crc32Str(IN PCSTR Str)
 	return Crc32;
 }
 
-BOOL GetSymbolsInfoFromFile(OUT PSYM_INFO_ARRAY pSymInfoArray)
+BOOL GetSymbolsInfoFromFile(OUT std::vector<SYM_INFO> *pSymInfoArray, IN OPTIONAL bool UpdateOffsetsFile)
 {
-	if (system(SYM_FROM_PDB_EXE) != 0)
-	{
-		printf("[-] Failed To Generate Symbols Offset File.\n");
-		return FALSE;
-	}
-
 	if (!pSymInfoArray)
 	{
 		printf("[-] Error: SymInfoArray Ptr is NULL.\n");
 		return FALSE;
 	}
-	pSymInfoArray->SymbolsArray = NULL;
-	pSymInfoArray->ElementsCount = 0;
+	pSymInfoArray->clear();
 
-	HANDLE hFile = CreateFileA(FUNCOFFSET_PATH, GENERIC_READ, FILE_SHARE_READ,
-		NULL, OPEN_EXISTING, 0, NULL);
+	HANDLE hFile;
+	bool Failed = false;
+	do {
+		if (SymbolsOffsetFilePath)
+		{
+			hFile = CreateFile(SymbolsOffsetFilePath, GENERIC_READ, FILE_SHARE_READ,
+				NULL, OPEN_EXISTING, 0, NULL);
+			break;
+		}
 
-	if (hFile == INVALID_HANDLE_VALUE)
+	RetryGeneratingFile:
+		if (Failed || UpdateOffsetsFile)
+		{
+			printf("[+] Generating Default Offsets File\n");
+			if (system(SYM_FROM_PDB_EXE) != 0)
+			{
+				printf("[-] Failed To Generate Symbols Offset File.\n");
+				return FALSE;
+			}
+		}
+	TryDefault:
+		hFile = CreateFile(SYM_OFFSETS_PATH, GENERIC_READ, FILE_SHARE_READ,
+			NULL, OPEN_EXISTING, 0, NULL);
+	} while (0);
+
+	if (!hFile || hFile == INVALID_HANDLE_VALUE)
 	{
-		printf(("[-] Failed To Open hFile: %s.\n-> Error: %u \n"), FUNCOFFSET_PATH, GetLastError());
+		if (!Failed)
+		{
+			if (SymbolsOffsetFilePath)
+			{
+				printf("[>] Warning: The Supplied File Path Is Invalid --> Switching To Default Offsets File.\n");
+				SymbolsOffsetFilePath = NULL;//Reset The Global Path Variable
+				goto TryDefault;
+			}
+			
+			printf("[>] Warning: Failed To Access Default Offsets File --> Default File Is Not Valid.\n");
+			Failed = true;	
+			goto RetryGeneratingFile;
+		}
+#ifdef UNICODE
+		printf(("[-] Failed To Open Offsets File: %ls.\n-> Error: %u \n"), SYM_OFFSETS_PATH, GetLastError());
+#else
+		printf(("[-] Failed To Open Offsets File: %s.\n-> Error: %u \n"), FUNCOFFSET_PATH, GetLastError());
+#endif
 		return FALSE;
 	}
 
 	DWORD FileSize = GetFileSize(hFile, NULL);
 	if (!FileSize)
 	{
-		printf("[-] Error: Offset hFile Is Empty.\n");
+		printf("[-] Error: Offset File Is Empty.\n");
 		CloseHandle(hFile);
-		return 0;
+		return FALSE;
 	}
 
-	PBYTE Buffer = (PBYTE)malloc(FileSize);
+	std::unique_ptr<char> BufferLocalPtr(new char[FileSize]);
+	PCHAR Buffer = BufferLocalPtr.get();
 	if (!Buffer)
 	{
-		printf("[-] Error: Failed To Allocate Memory For hFile Buffer.\n");
+		printf("[-] Error: Failed To Allocate Memory For Offsets File Buffer.\n");
 		CloseHandle(hFile);
-		return 0;
+		return FALSE;
 	}
 
 	BOOL IsRead = ReadFile(hFile, Buffer, FileSize, NULL, NULL);
 	CloseHandle(hFile);
 	if (!IsRead)
 	{
-		printf("[-] Error: Failed To Read Data From File.\n");
-		free(Buffer);
-		return 0;
+		printf("[-] Error: Failed To Read Data From Offsets File.\n");
+		return FALSE;
 	}
 
-	DWORD Index = 0;
+	SIZE_T Index = 0;
 	SIZE_T LinesCount = 0;
 	do {
 		if (Buffer[Index] == '\n')
@@ -80,43 +113,26 @@ BOOL GetSymbolsInfoFromFile(OUT PSYM_INFO_ARRAY pSymInfoArray)
 			++LinesCount;
 		}
 		++Index;
-	} while (Index <= FileSize);
+	} while (Index < FileSize);
 
 	if (!LinesCount)
 	{
-		printf("[-] Error: Failed To Read Data From hFile.\n");
-		free(Buffer);
-		return 0;
+		printf("[-] Error: Failed To Get Lines Count In Offsets File.\n");
+		return FALSE;
 	}
 
+	pSymInfoArray->reserve(LinesCount);
 	Index = 0;
-	PSYM_INFO SymInfoArray = (PSYM_INFO)malloc(sizeof(SYM_INFO) * LinesCount);
-	if (!SymInfoArray)
-	{
-		printf("[-] Error: Failed To Allocate Memory For Symbols Info Array.\n");
-		free(Buffer);
-		return 0;
-	}
-	memset(SymInfoArray, 0, sizeof(SYM_INFO) * LinesCount);
 
 	SIZE_T Count = 0;
 	SIZE_T Line = 0;
 	SIZE_T CommaCount = 0; 
-	char* SymName = NULL;
+	SYM_INFO SymInfo;
 	do {
 		if (Buffer[Index] == ',')
 		{
-			SymName = (PCHAR)malloc(Count + 1);
-			if (!SymName)
-			{
-				printf("[-] Error: Failed To Allocate Memory For Symbol Name.\n");
-				break;
-			}
-			memcpy(SymName, &Buffer[Index - Count], Count);
-			SymName[Count] = '\0';
-			SymInfoArray[Line].SymbolName = SymName;
-			SymInfoArray[Line].Crc32Hash = Crc32Str(SymName);
-			SymName = NULL;
+			std::string SymName(&Buffer[Index - Count], &Buffer[Index]);
+			SymInfo.Crc32Hash = Crc32Str(SymName.c_str());
 			Count = 0;
 			++CommaCount;
 		}
@@ -125,100 +141,57 @@ BOOL GetSymbolsInfoFromFile(OUT PSYM_INFO_ARRAY pSymInfoArray)
 			Buffer[Index] = '\0';
 			DWORD Offset = NULL;
 			sscanf_s((PCSTR)(Buffer + Index - Count), "0x%X", &Offset);
-			SymInfoArray[Line].SymbolOffset = Offset;
+			SymInfo.SymbolOffset = Offset;
+			pSymInfoArray->emplace_back(SymInfo);
 
+			SymInfo.Crc32Hash = 0;
+			SymInfo.Crc32Hash = 0;
 			++Line;
 			Count = 0;
 		}
 		else
 		{
+			if (Count > MAX_SYM_NAME_LENGTH)
+			{
+				printf("Error: Max Symbol Length Exceeded.\n");
+				return FALSE;
+			}
 			++Count;
 		}
 
 		++Index;
 	} while (Index < FileSize);
 
-	free(Buffer);
-
-	if ((Index != FileSize) || Line != CommaCount || !Line)
+	if (!Line || (Line != CommaCount) || (Index != FileSize))
 	{
-		for (SIZE_T i = 0; i < Line; ++i)
-		{
-			if (SymInfoArray[i].SymbolName)
-			{
-				free((PVOID)SymInfoArray[i].SymbolName);
-				SymInfoArray[i].SymbolName = NULL;
-			}
-		}
-		free(SymInfoArray);
-		SymInfoArray = NULL;
-		return 0;
-	}
-
-	pSymInfoArray->SymbolsArray = SymInfoArray;
-	pSymInfoArray->ElementsCount = Line;
-	return 1;
-}
-
-BOOL ClearSymInfoArray(IN OUT PSYM_INFO_ARRAY pSymInfoArray)
-{
-	if (!pSymInfoArray || !pSymInfoArray->ElementsCount)
-	{
-		printf("[-] Error: Invalid Parameter.\n");
 		return FALSE;
 	}
-
-	PSYM_INFO SymInfoArray = pSymInfoArray->SymbolsArray;
-	if (!SymInfoArray)
-	{
-		printf("[-] Error: The Array Is Already Empty.\n");
-		return FALSE;
-	}
-
-	for (SIZE_T i = 0; i < pSymInfoArray->ElementsCount; ++i)
-	{
-		if (SymInfoArray[i].SymbolName)
-		{
-			free((PVOID)SymInfoArray[i].SymbolName);
-			SymInfoArray[i].SymbolName = NULL;
-		}
-	}
-	free(SymInfoArray);
-	pSymInfoArray->SymbolsArray = NULL;
-	pSymInfoArray->ElementsCount = 0;
-
 	return TRUE;
 }
 
-DWORD GetSymbolOffsetByHash(IN PSYM_INFO_ARRAY pSymInfoArray, IN DWORD SymHash)
+DWORD GetSymbolOffsetByHash(IN const std::vector<SYM_INFO>& SymInfoArray, IN DWORD SymHash)
 {
-	if (!pSymInfoArray || !SymHash)
+	if (SymInfoArray.empty() || !SymHash)
 	{
 		printf("[-] Error: Invalid Parameter.\n");
 		return 0;
 	}
-	PSYM_INFO SymInfoArray = pSymInfoArray->SymbolsArray;
-	if (!SymInfoArray)
-	{
-		printf("[-] Error: Failed To Sym Offset, The Sym Info Array Is Empty.\n");
-		return 0;
-	}
 
-	for (SIZE_T i = 0; i < pSymInfoArray->ElementsCount; ++i)
+	for (SYM_INFO SymInfo:SymInfoArray)
 	{
-		if (SymInfoArray[i].Crc32Hash == SymHash)
+		if (SymInfo.Crc32Hash == SymHash)
 		{
-			return SymInfoArray[i].SymbolOffset;
+			return SymInfo.SymbolOffset;
 		}
 	}
 
 	return 0;
 }
 
-DWORD GetSymbolOffsetByName(IN PSYM_INFO_ARRAY pSymInfoArray, IN PCSTR SymName)
+DWORD GetSymbolOffsetByName(IN const std::vector<SYM_INFO>& SymInfoArray, IN const std::string& SymName)
 {
-	DWORD Hash = Crc32Str(SymName);
-	return GetSymbolOffsetByHash(pSymInfoArray, Hash);
+	DWORD Hash = Crc32Str(SymName.c_str());
+	return GetSymbolOffsetByHash(SymInfoArray, Hash);
 }
 
 #endif

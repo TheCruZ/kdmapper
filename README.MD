@@ -34,7 +34,12 @@ KDMapper is a simple tool that exploits iqvw64e.sys Intel driver to manually map
 	Added param --indPages to map in allocated independent pages
 	Added param --PassAllocationPtr to pass allocation ptr as first param
 	Added the possibility to modify params before call driver entry
-	Now you can pass directly bytes to mapdriver function
+	Now you can pass bytes directly to mapdriver function
+	Added PDB_OFFSETS macro that will allow the use of Offset PDB featurs (choose the target build or define in SymbolsHandler.hpp)
+	Added param --OffsetsPath "FilePath" to include your own offsets file path (if FilePath contains spaces, it must be enclosed in quotation marks)
+	Added param --DontUpdateOffset to execute without updating the offsets file (warning: you have to be sure that the offsets are not outdated to your current windows build, or you risk a potential BSOD)
+	Introduced new project "SymbolsFromPDB" that will help KDMapper to adapt quickly to any windows updates by parsing the target .PDB files (PDB_OFFSETS macro must be defined to use this feautre)
+	Build directory changed to "..\Bin\", and it is the standard directory which include the tools for SymbolsFromPDB and KDMapper SymbolsHandler 
 	
 ## Requirements:
 

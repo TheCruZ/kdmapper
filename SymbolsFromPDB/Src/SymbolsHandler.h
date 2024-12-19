@@ -18,12 +18,25 @@
 #pragma comment( lib, "dbghelp.lib" )
 
 
+#ifdef UNICODE
+#define NTOSKRNL_PATH		L".\\Tools\\Symbols\\ntkrnlmp.pdb"
+#define WDFILTER_PATH		L".\\Tools\\Symbols\\WdFilter.pdb"
+#define CIDLL_PATH			L".\\Tools\\Symbols\\ci.pdb"
 
+#define SYM_OFFSETS_PATH		L"SymbolsOffset.txt"
+
+#define PATH_TYPE			PCWSTR
+#else
 #define NTOSKRNL_PATH		".\\Tools\\Symbols\\ntkrnlmp.pdb"
 #define WDFILTER_PATH		".\\Tools\\Symbols\\WdFilter.pdb"
 #define CIDLL_PATH			".\\Tools\\Symbols\\ci.pdb"
 
 #define FUNCOFFSET_PATH		"SymbolsOffset.txt"
+
+#define PATH_TYPE			PCSTR
+#endif
+
+
 
 
 BOOLEAN GenerateOffsetFile(
@@ -31,18 +44,18 @@ BOOLEAN GenerateOffsetFile(
 );
 
 BOOLEAN InitKernelSymbolsList(
-	IN const CHAR* FilePath, 
+	IN PATH_TYPE FilePath,
 	IN OUT PSYM_INFO_ARRAY pSymbolsArray
 );
 
 BOOLEAN GetFileParams(IN 
-	const CHAR* pFileName, 
+	PATH_TYPE pFileName,
 	OUT uintptr_t* BaseAddr,
 	OUT DWORD* FileSize
 );
 
 BOOLEAN _GetFileSize(
-	IN const CHAR* pFileName,
+	IN PATH_TYPE pFileName,
 	OUT DWORD* FileSize
 );
 

@@ -39,12 +39,12 @@ BOOLEAN GenerateOffsetFile()
 		}
 	}
 
-	HANDLE File = CreateFileA(FUNCOFFSET_PATH, GENERIC_WRITE, FILE_SHARE_READ,
+	HANDLE FileHandle = CreateFile(SYM_OFFSETS_PATH, GENERIC_WRITE, FILE_SHARE_READ,
 		NULL, CREATE_ALWAYS, 0, NULL);
 
-	if (!File || File == INVALID_HANDLE_VALUE)
+	if (!FileHandle || FileHandle == INVALID_HANDLE_VALUE)
 	{
-		printf("Error: Failed To Create Symbols Offset File.\n");
+		printf("Error: Failed To Create Symbols Offset FileHandle.\n");
 		return FALSE;
 	}
 
@@ -69,14 +69,14 @@ BOOLEAN GenerateOffsetFile()
 
 	if (!BufferSize)
 	{
-		printf("Error: Failed To Get File Buffer Size.\n");
+		printf("Error: Failed To Get FileHandle Buffer Size.\n");
 		goto FailExit;
 	}
 
 	Buffer = malloc(BufferSize);
 	if (!Buffer)
 	{
-		printf("Error: Failed To Allocate Memory For File Buffer.\n");
+		printf("Error: Failed To Allocate Memory For FileHandle Buffer.\n");
 		goto FailExit;
 	}
 	
@@ -100,29 +100,29 @@ BOOLEAN GenerateOffsetFile()
 	}
 
 	BOOL IsWritten = WriteFile(
-		File,
+		FileHandle,
 		Buffer,
 		BufferSize,
 		NULL,
 		NULL);
 
-	CloseHandle(File);
+	CloseHandle(FileHandle);
 	free(Buffer);
 
 	if (!IsWritten)
 	{
-		printf("Error: Failed To Write To Symbols Offset File.\n");
+		printf("Error: Failed To Write To Symbols Offset FileHandle.\n");
 		return FALSE;
 	}
 	return TRUE;
 
 FailExit:
-	CloseHandle(File);
+	CloseHandle(FileHandle);
 	return FALSE;
 }
 
 BOOLEAN InitKernelSymbolsList(
-	IN const CHAR* FilePath,
+	IN PATH_TYPE FilePath,
 	IN OUT PSYM_INFO_ARRAY pSymbolsArray)
 {
 	if (!FilePath || !pSymbolsArray)
@@ -158,7 +158,7 @@ BOOLEAN InitKernelSymbolsList(
 	do
 	{
 		// Determine the base address and the file size 
-		const CHAR* pFileName = FilePath;
+		PATH_TYPE pFileName = FilePath;
 
 		DWORD64   BaseAddr = 0;
 		DWORD     FileSize = 0;
@@ -171,6 +171,19 @@ BOOLEAN InitKernelSymbolsList(
 		}
 
 		// Load symbols for the module 
+#ifdef UNICODE
+		printf("-> Loading Symbols From %ls ... \n", pFileName);
+		DWORD64 ModBase = SymLoadModuleExW(
+			GetCurrentProcess(), // Process handle of the current process 
+			NULL,                // Handle to the module's image file (not needed)
+			pFileName,           // Path/name of the file 
+			NULL,                // User-defined short name of the module (it can be NULL) 
+			BaseAddr,            // Base address of the module (cannot be NULL if .PDB file is used, otherwise it can be NULL) 
+			FileSize,            // Size of the file (cannot be NULL if .PDB file is used, otherwise it can be NULL) 
+			NULL,
+			NULL
+		);
+#else
 		printf("-> Loading Symbols From %s ... \n",pFileName);
 		DWORD64 ModBase = SymLoadModule64(
 			GetCurrentProcess(), // Process handle of the current process 
@@ -180,7 +193,7 @@ BOOLEAN InitKernelSymbolsList(
 			BaseAddr,            // Base address of the module (cannot be NULL if .PDB file is used, otherwise it can be NULL) 
 			FileSize             // Size of the file (cannot be NULL if .PDB file is used, otherwise it can be NULL) 
 		);
-
+#endif		
 		if (ModBase == 0)
 		{
 			printf("Error: SymLoadModule64() failed. Error code: %u \n", GetLastError());
@@ -220,8 +233,6 @@ BOOLEAN InitKernelSymbolsList(
 				pSymbolsArray->SymbolsArray[i].SymbolOffset = (DWORD)(SymInfoPackage.si.Address - ModBase);
 				pSymbolsArray->SymbolsArray[i].NameLen = SymInfoPackage.si.NameLen;
 				printf("Symbol %s Offset: %X\n", SymName, pSymbolsArray->SymbolsArray[i].SymbolOffset);
-
-				//ShowSymbolDetails(sip.si);
 			}
 		}
 		// Unload symbols for the module 
@@ -230,7 +241,6 @@ BOOLEAN InitKernelSymbolsList(
 		{
 			printf("Error: Unload Symbols failed. Error code: %u \n", GetLastError());
 		}
-
 	} while (0);
 
 	// Deinitialize DbgHelp 
@@ -240,7 +250,6 @@ BOOLEAN InitKernelSymbolsList(
 		printf("Error: Sym Cleanup failed. Error code: %u \n", GetLastError());
 		return 0;
 	}
-
 	// Complete 
 	return Result;
 }
@@ -251,7 +260,7 @@ BOOLEAN InitKernelSymbolsList(
 //
 
 BOOLEAN GetFileParams(IN
-	const CHAR* pFileName,
+	PATH_TYPE pFileName,
 	OUT uintptr_t* BaseAddr,
 	OUT DWORD* FileSize)
 {
@@ -261,14 +270,22 @@ BOOLEAN GetFileParams(IN
 	{
 		return FALSE;
 	}
-
+	
 	// Determine the extension of the file 
-	CHAR szFileExt[_MAX_EXT] = { 0 };
+	PATH_TYPE szFileExt[_MAX_EXT] = { 0 };
 
+#ifdef UNICODE
+	_wsplitpath_s(pFileName, NULL, 0, NULL, 0, NULL, 0, szFileExt, _MAX_EXT);
+#else
 	_splitpath_s(pFileName, NULL, 0, NULL, 0, NULL, 0, szFileExt, _MAX_EXT);
+#endif
 
 	// Is it .PDB file ? 
+#ifdef UNICODE
+	if (_wcsicmp(szFileExt, L".PDB") == 0)
+#else
 	if (_stricmp(szFileExt, ".PDB") == 0)
+#endif
 	{
 		// Yes, it is a .PDB file 
 		// Determine its size, and use a dummy base address 
@@ -296,7 +313,7 @@ BOOLEAN GetFileParams(IN
 }
 
 BOOLEAN _GetFileSize(
-	IN const CHAR* pFileName,
+	IN PATH_TYPE pFileName,
 	OUT DWORD* FileSize)
 {
 	// Check parameters 
@@ -306,7 +323,7 @@ BOOLEAN _GetFileSize(
 	}
 
 	// Open the file 
-	HANDLE hFile = CreateFileA(pFileName, GENERIC_READ, FILE_SHARE_READ,
+	HANDLE hFile = CreateFile(pFileName, GENERIC_READ, FILE_SHARE_READ,
 		NULL, OPEN_EXISTING, 0, NULL);
 
 	if (hFile == INVALID_HANDLE_VALUE)

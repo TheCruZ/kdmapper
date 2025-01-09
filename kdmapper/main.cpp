@@ -1,9 +1,10 @@
 #ifndef KDLIBMODE
 
-#include <Windows.h>
+//#include <Windows.h>
 #include <string>
 #include <vector>
 #include <filesystem>
+
 
 #include "kdmapper.hpp"
 
@@ -36,11 +37,6 @@ int paramExists(const int argc, wchar_t** argv, const wchar_t* param) {
 	return -1;
 }
 
-void help() {
-	Log(L"\r\n\r\n[!] Incorrect Usage!" << std::endl);
-	Log(L"[+] Usage: kdmapper.exe [--free|--indPages][--PassAllocationPtr] driver" << std::endl);
-}
-
 bool callbackExample(ULONG64* param1, ULONG64* param2, ULONG64 allocationPtr, ULONG64 allocationSize) {
 	UNREFERENCED_PARAMETER(param1);
 	UNREFERENCED_PARAMETER(param2);
@@ -50,7 +46,7 @@ bool callbackExample(ULONG64* param1, ULONG64* param2, ULONG64 allocationPtr, UL
 	
 	/*
 	This callback occurs before call driver entry and
-	can be usefull to pass more customized params in 
+	can be useful to pass more customized params in 
 	the last step of the mapping procedure since you 
 	know now the mapping address and other things
 	*/
@@ -97,8 +93,39 @@ void PauseIfParentIsExplorer() {
 	}
 }
 
+void help() {
+	Log(L"\r\n\r\n[!] Incorrect Usage!" << std::endl);
+#ifdef PDB_OFFSETS
+	Log(L"[+] Usage: kdmapper.exe [--DontUpdateOffset | --OffsetsPath \"FilePath\"][--free | --indPages][--PassAllocationPtr] driver" << std::endl); 
+#else
+	Log(L"[+] Usage: kdmapper.exe [--free | --indPages][--PassAllocationPtr] driver" << std::endl);
+#endif
+	PauseIfParentIsExplorer();
+}
+
 int wmain(const int argc, wchar_t** argv) {
 	SetUnhandledExceptionFilter(SimplestCrashHandler);
+
+#ifdef PDB_OFFSETS
+	bool UpdateOffset = !(paramExists(argc, argv, L"DontUpdateOffset") > 0);
+	int FilePathParamIdx = paramExists(argc, argv, L"OffsetsPath");
+	if (FilePathParamIdx > 0)
+	{
+		SymbolsOffsetFilePath = argv[FilePathParamIdx + 1];
+#ifdef UNICODE
+		printf("[+] Setting Offsets File Path To: %ls\n", SymbolsOffsetFilePath);
+#else
+		printf("[+] Setting Offsets File Path To: %s\n", SymbolsOffsetFilePath);
+#endif
+	}
+
+	CSymInfo SymInfo(&SymbolsInfoArray, UpdateOffset);
+	if (!SymInfo.m_IsValid) {
+		Log(L"[-] Error: Failed To Get Symbols Info.\n");
+		PauseIfParentIsExplorer();
+		return -1;
+	}
+#endif
 
 	bool free = paramExists(argc, argv, L"free") > 0;
 	bool indPagesMode = paramExists(argc, argv, L"indPages") > 0;
@@ -177,6 +204,7 @@ int wmain(const int argc, wchar_t** argv) {
 		PauseIfParentIsExplorer();
 	}
 	Log(L"[+] success" << std::endl);
+
 }
 
 #endif

@@ -5,11 +5,15 @@ VisualStudioVersion = 17.5.33530.505
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "kdmapper", "kdmapper\kdmapper.vcxproj", "{518E0636-BA8F-459D-ACAC-81BD33475E3E}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "SymbolsFromPDB", "SymbolsFromPDB\SymbolsFromPDB.vcxproj", "{25F92BD2-B79F-44C0-9B34-B7DE61F39E50}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
 		lib-Debug|x64 = lib-Debug|x64
+		lib-Release_Pdb_Offsets|x64 = lib-Release_Pdb_Offsets|x64
 		lib-Release|x64 = lib-Release|x64
+		Release_Pdb_Offset|x64 = Release_Pdb_Offset|x64
 		Release|x64 = Release|x64
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
@@ -17,10 +21,22 @@ Global
 		{518E0636-BA8F-459D-ACAC-81BD33475E3E}.Debug|x64.Build.0 = Debug|x64
 		{518E0636-BA8F-459D-ACAC-81BD33475E3E}.lib-Debug|x64.ActiveCfg = lib-Debug|x64
 		{518E0636-BA8F-459D-ACAC-81BD33475E3E}.lib-Debug|x64.Build.0 = lib-Debug|x64
+		{518E0636-BA8F-459D-ACAC-81BD33475E3E}.lib-Release_Pdb_Offsets|x64.ActiveCfg = lib-Release_Pdb_Offsets|x64
+		{518E0636-BA8F-459D-ACAC-81BD33475E3E}.lib-Release_Pdb_Offsets|x64.Build.0 = lib-Release_Pdb_Offsets|x64
 		{518E0636-BA8F-459D-ACAC-81BD33475E3E}.lib-Release|x64.ActiveCfg = lib-Release|x64
 		{518E0636-BA8F-459D-ACAC-81BD33475E3E}.lib-Release|x64.Build.0 = lib-Release|x64
+		{518E0636-BA8F-459D-ACAC-81BD33475E3E}.Release_Pdb_Offset|x64.ActiveCfg = Release_Pdb_Offset|x64
+		{518E0636-BA8F-459D-ACAC-81BD33475E3E}.Release_Pdb_Offset|x64.Build.0 = Release_Pdb_Offset|x64
 		{518E0636-BA8F-459D-ACAC-81BD33475E3E}.Release|x64.ActiveCfg = Release|x64
 		{518E0636-BA8F-459D-ACAC-81BD33475E3E}.Release|x64.Build.0 = Release|x64
+		{25F92BD2-B79F-44C0-9B34-B7DE61F39E50}.Debug|x64.ActiveCfg = Release_Pdb_Offset|x64
+		{25F92BD2-B79F-44C0-9B34-B7DE61F39E50}.lib-Debug|x64.ActiveCfg = lib-Release_Pdb_Offsets|x64
+		{25F92BD2-B79F-44C0-9B34-B7DE61F39E50}.lib-Release_Pdb_Offsets|x64.ActiveCfg = lib-Release_Pdb_Offsets|x64
+		{25F92BD2-B79F-44C0-9B34-B7DE61F39E50}.lib-Release_Pdb_Offsets|x64.Build.0 = lib-Release_Pdb_Offsets|x64
+		{25F92BD2-B79F-44C0-9B34-B7DE61F39E50}.lib-Release|x64.ActiveCfg = lib-Release_Pdb_Offsets|x64
+		{25F92BD2-B79F-44C0-9B34-B7DE61F39E50}.Release_Pdb_Offset|x64.ActiveCfg = Release_Pdb_Offset|x64
+		{25F92BD2-B79F-44C0-9B34-B7DE61F39E50}.Release_Pdb_Offset|x64.Build.0 = Release_Pdb_Offset|x64
+		{25F92BD2-B79F-44C0-9B34-B7DE61F39E50}.Release|x64.ActiveCfg = Release_Pdb_Offset|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

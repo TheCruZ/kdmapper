@@ -16,6 +16,9 @@
 #include <fstream>
 
 #include "nt.hpp"
+#ifdef PDB_OFFSETS
+#include "SymbolsHandler.hpp"
+#endif
 
 namespace utils
 {

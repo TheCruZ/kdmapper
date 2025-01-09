@@ -76,14 +76,13 @@ DWORD getParentProcess()
 
 	}
 	__finally {
-		if (hSnapshot && hSnapshot != INVALID_HANDLE_VALUE) CloseHandle(hSnapshot);
+		if (hSnapshot != INVALID_HANDLE_VALUE) CloseHandle(hSnapshot);
 	}
 	return ppid;
 }
 
 //Help people that don't understand how to open a console
 void PauseIfParentIsExplorer() {
-#ifndef DEBUG
 	DWORD explorerPid = 0;
 	GetWindowThreadProcessId(GetShellWindow(), &explorerPid);
 	DWORD parentPid = getParentProcess();
@@ -92,11 +91,6 @@ void PauseIfParentIsExplorer() {
 		Log(L"[+] Press enter to close" << std::endl);
 		std::cin.get();
 	}
-#else
-	Log(L"[+] Pausing to allow for debugging" << std::endl);
-	Log(L"[+] Press enter to close" << std::endl);
-	std::cin.get();
-#endif
 }
 
 void help() {
@@ -211,9 +205,6 @@ int wmain(const int argc, wchar_t** argv) {
 	}
 	Log(L"[+] success" << std::endl);
 
-#ifdef DEBUG
-	PauseIfParentIsExplorer();
-#endif
 }
 
 #endif

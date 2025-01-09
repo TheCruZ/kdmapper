@@ -10,8 +10,8 @@ EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
-		lbi-Release_Pdb_Offsets|x64 = lbi-Release_Pdb_Offsets|x64
 		lib-Debug|x64 = lib-Debug|x64
+		lib-Release_Pdb_Offsets|x64 = lib-Release_Pdb_Offsets|x64
 		lib-Release|x64 = lib-Release|x64
 		Release_Pdb_Offset|x64 = Release_Pdb_Offset|x64
 		Release|x64 = Release|x64
@@ -19,26 +19,24 @@ Global
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{518E0636-BA8F-459D-ACAC-81BD33475E3E}.Debug|x64.ActiveCfg = Debug|x64
 		{518E0636-BA8F-459D-ACAC-81BD33475E3E}.Debug|x64.Build.0 = Debug|x64
-		{518E0636-BA8F-459D-ACAC-81BD33475E3E}.lbi-Release_Pdb_Offsets|x64.ActiveCfg = lbi-Release_Pdb_Offsets|x64
-		{518E0636-BA8F-459D-ACAC-81BD33475E3E}.lbi-Release_Pdb_Offsets|x64.Build.0 = lbi-Release_Pdb_Offsets|x64
 		{518E0636-BA8F-459D-ACAC-81BD33475E3E}.lib-Debug|x64.ActiveCfg = lib-Debug|x64
 		{518E0636-BA8F-459D-ACAC-81BD33475E3E}.lib-Debug|x64.Build.0 = lib-Debug|x64
+		{518E0636-BA8F-459D-ACAC-81BD33475E3E}.lib-Release_Pdb_Offsets|x64.ActiveCfg = lib-Release_Pdb_Offsets|x64
+		{518E0636-BA8F-459D-ACAC-81BD33475E3E}.lib-Release_Pdb_Offsets|x64.Build.0 = lib-Release_Pdb_Offsets|x64
 		{518E0636-BA8F-459D-ACAC-81BD33475E3E}.lib-Release|x64.ActiveCfg = lib-Release|x64
 		{518E0636-BA8F-459D-ACAC-81BD33475E3E}.lib-Release|x64.Build.0 = lib-Release|x64
 		{518E0636-BA8F-459D-ACAC-81BD33475E3E}.Release_Pdb_Offset|x64.ActiveCfg = Release_Pdb_Offset|x64
 		{518E0636-BA8F-459D-ACAC-81BD33475E3E}.Release_Pdb_Offset|x64.Build.0 = Release_Pdb_Offset|x64
 		{518E0636-BA8F-459D-ACAC-81BD33475E3E}.Release|x64.ActiveCfg = Release|x64
 		{518E0636-BA8F-459D-ACAC-81BD33475E3E}.Release|x64.Build.0 = Release|x64
-		{25F92BD2-B79F-44C0-9B34-B7DE61F39E50}.Debug|x64.ActiveCfg = Debug|x64
-		{25F92BD2-B79F-44C0-9B34-B7DE61F39E50}.Debug|x64.Build.0 = Debug|x64
-		{25F92BD2-B79F-44C0-9B34-B7DE61F39E50}.lbi-Release_Pdb_Offsets|x64.ActiveCfg = lbi-Release_Pdb_Offsets|x64
-		{25F92BD2-B79F-44C0-9B34-B7DE61F39E50}.lbi-Release_Pdb_Offsets|x64.Build.0 = lbi-Release_Pdb_Offsets|x64
-		{25F92BD2-B79F-44C0-9B34-B7DE61F39E50}.lib-Debug|x64.ActiveCfg = Debug|x64
-		{25F92BD2-B79F-44C0-9B34-B7DE61F39E50}.lib-Debug|x64.Build.0 = Debug|x64
-		{25F92BD2-B79F-44C0-9B34-B7DE61F39E50}.lib-Release|x64.ActiveCfg = Release|x64
+		{25F92BD2-B79F-44C0-9B34-B7DE61F39E50}.Debug|x64.ActiveCfg = Release_Pdb_Offset|x64
+		{25F92BD2-B79F-44C0-9B34-B7DE61F39E50}.lib-Debug|x64.ActiveCfg = lib-Release_Pdb_Offsets|x64
+		{25F92BD2-B79F-44C0-9B34-B7DE61F39E50}.lib-Release_Pdb_Offsets|x64.ActiveCfg = lib-Release_Pdb_Offsets|x64
+		{25F92BD2-B79F-44C0-9B34-B7DE61F39E50}.lib-Release_Pdb_Offsets|x64.Build.0 = lib-Release_Pdb_Offsets|x64
+		{25F92BD2-B79F-44C0-9B34-B7DE61F39E50}.lib-Release|x64.ActiveCfg = lib-Release_Pdb_Offsets|x64
 		{25F92BD2-B79F-44C0-9B34-B7DE61F39E50}.Release_Pdb_Offset|x64.ActiveCfg = Release_Pdb_Offset|x64
 		{25F92BD2-B79F-44C0-9B34-B7DE61F39E50}.Release_Pdb_Offset|x64.Build.0 = Release_Pdb_Offset|x64
-		{25F92BD2-B79F-44C0-9B34-B7DE61F39E50}.Release|x64.ActiveCfg = Release|x64
+		{25F92BD2-B79F-44C0-9B34-B7DE61F39E50}.Release|x64.ActiveCfg = Release_Pdb_Offset|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

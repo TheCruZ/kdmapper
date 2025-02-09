@@ -111,3 +111,10 @@ PVOID utils::FindSection(const char* sectionName, uintptr_t modulePtr, PULONG si
 	}
 	return 0;
 }
+
+std::wstring utils::GetCurrentAppFolder() {
+	wchar_t buffer[1024];
+	GetModuleFileNameW(NULL, buffer, 1024);
+	std::wstring::size_type pos = std::wstring(buffer).find_last_of(L"\\/");
+	return std::wstring(buffer).substr(0, pos);
+}

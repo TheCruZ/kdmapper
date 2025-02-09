@@ -92,13 +92,11 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="Src\main.c" />
-    <ClCompile Include="Src\SymbolsHandler.c" />
+    <ClCompile Include="SimplestSymbolHandler.cpp" />
+    <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Src\DataStructs.h" />
-    <ClInclude Include="Src\Defines.h" />
-    <ClInclude Include="Src\SymbolsHandler.h" />
+    <ClInclude Include="SimplestSymbolHandler.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

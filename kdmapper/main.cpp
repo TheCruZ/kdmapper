@@ -8,6 +8,10 @@
 
 #include "kdmapper.hpp"
 
+#ifdef PDB_OFFSETS
+#include "KDSymbolsHandler.h"
+#endif
+
 HANDLE iqvw64e_device_handle;
 
 
@@ -96,7 +100,7 @@ void PauseIfParentIsExplorer() {
 void help() {
 	Log(L"\r\n\r\n[!] Incorrect Usage!" << std::endl);
 #ifdef PDB_OFFSETS
-	Log(L"[+] Usage: kdmapper.exe [--DontUpdateOffset | --OffsetsPath \"FilePath\"][--free | --indPages][--PassAllocationPtr] driver" << std::endl); 
+	Log(L"[+] Usage: kdmapper.exe [--dontUpdateOffsets [--offsetsPath \"FilePath\"]][--free | --indPages][--PassAllocationPtr] driver" << std::endl); 
 #else
 	Log(L"[+] Usage: kdmapper.exe [--free | --indPages][--PassAllocationPtr] driver" << std::endl);
 #endif
@@ -105,27 +109,6 @@ void help() {
 
 int wmain(const int argc, wchar_t** argv) {
 	SetUnhandledExceptionFilter(SimplestCrashHandler);
-
-#ifdef PDB_OFFSETS
-	bool UpdateOffset = !(paramExists(argc, argv, L"DontUpdateOffset") > 0);
-	int FilePathParamIdx = paramExists(argc, argv, L"OffsetsPath");
-	if (FilePathParamIdx > 0)
-	{
-		SymbolsOffsetFilePath = argv[FilePathParamIdx + 1];
-#ifdef UNICODE
-		printf("[+] Setting Offsets File Path To: %ls\n", SymbolsOffsetFilePath);
-#else
-		printf("[+] Setting Offsets File Path To: %s\n", SymbolsOffsetFilePath);
-#endif
-	}
-
-	CSymInfo SymInfo(&SymbolsInfoArray, UpdateOffset);
-	if (!SymInfo.m_IsValid) {
-		Log(L"[-] Error: Failed To Get Symbols Info.\n");
-		PauseIfParentIsExplorer();
-		return -1;
-	}
-#endif
 
 	bool free = paramExists(argc, argv, L"free") > 0;
 	bool indPagesMode = paramExists(argc, argv, L"indPages") > 0;
@@ -149,6 +132,23 @@ int wmain(const int argc, wchar_t** argv) {
 		Log(L"[+] Pass Allocation Ptr as first param enabled" << std::endl);
 	}
 
+#ifdef PDB_OFFSETS
+	bool UpdateOffset = !(paramExists(argc, argv, L"dontUpdateOffsets") > 0);
+	int FilePathParamIdx = paramExists(argc, argv, L"offsetsPath");
+	std::wstring offsetFilePath = utils::GetCurrentAppFolder() + L"\\offsets.ini";
+
+	if (UpdateOffset && FilePathParamIdx > 0) {
+		Log("[-] Can't set --offsetsPath without set --dontUpdateOffsets" << std::endl);
+		help();
+		return -1;
+	}
+
+	if (FilePathParamIdx > 0) {
+		offsetFilePath = argv[FilePathParamIdx + 1];
+		Log("[+] Setting Offsets File Path To: " << offsetFilePath << std::endl);
+	}
+#endif
+
 	int drvIndex = -1;
 	for (int i = 1; i < argc; i++) {
 		if (std::filesystem::path(argv[i]).extension().string().compare(".sys") == 0) {
@@ -169,6 +169,14 @@ int wmain(const int argc, wchar_t** argv) {
 		PauseIfParentIsExplorer();
 		return -1;
 	}
+
+#ifdef PDB_OFFSETS
+	if (!KDSymbolsHandler::GetInstance()->ReloadFile(offsetFilePath, UpdateOffset ? utils::GetCurrentAppFolder() + L"\\" + SYM_FROM_PDB_EXE : L"")) {
+		Log(L"[-] Error: Failed To Get Symbols Info." << std::endl);
+		PauseIfParentIsExplorer();
+		return -1;
+	}
+#endif
 
 	iqvw64e_device_handle = intel_driver::Load();
 

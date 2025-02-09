@@ -15,21 +15,15 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Src\main.c">
+    <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Src\SymbolsHandler.c">
+    <ClCompile Include="SimplestSymbolHandler.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Src\SymbolsHandler.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Src\Defines.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Src\DataStructs.h">
+    <ClInclude Include="SimplestSymbolHandler.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

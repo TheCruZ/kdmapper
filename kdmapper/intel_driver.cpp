@@ -1,5 +1,9 @@
 #include "intel_driver.hpp"
 
+#ifdef PDB_OFFSETS
+#include "KDSymbolsHandler.h"
+#endif
+
 ULONG64 intel_driver::ntoskrnlAddr = 0;
 char intel_driver::driver_name[100] = {};
 
@@ -153,7 +157,7 @@ bool intel_driver::ClearWdFilterDriverList(HANDLE device_handle) {
 	}
 
 #ifdef PDB_OFFSETS
-	uintptr_t MpBmDocOpenRules = GetSymbolOffsetByName(SymbolsInfoArray, "MpBmDocOpenRules");
+	uintptr_t MpBmDocOpenRules = KDSymbolsHandler::GetInstance()->GetOffset(L"MpBmDocOpenRules");
 	if (!MpBmDocOpenRules)
 	{
 		Log("[-] Failed To Get MpBmDocOpenRules." << std::endl);
@@ -166,7 +170,7 @@ bool intel_driver::ClearWdFilterDriverList(HANDLE device_handle) {
 	uintptr_t RuntimeDriversArray = MpBmDocOpenRules + 0x68;
 	ReadMemory(device_handle, RuntimeDriversArray, &RuntimeDriversArray, sizeof(uintptr_t));
 
-	uintptr_t MpFreeDriverInfoEx = GetSymbolOffsetByName(SymbolsInfoArray,"MpFreeDriverInfoEx");
+	uintptr_t MpFreeDriverInfoEx = KDSymbolsHandler::GetInstance()->GetOffset(L"MpFreeDriverInfoEx");
 	if (!MpFreeDriverInfoEx)
 	{
 		Log("[-] Failed To Get MpFreeDriverInfoEx." << std::endl);
@@ -457,7 +461,7 @@ uint64_t intel_driver::MmAllocateIndependentPagesEx(HANDLE device_handle, uint32
 #ifdef PDB_OFFSETS	
 	if (!kernel_MmAllocateIndependentPagesEx)
 	{
-		kernel_MmAllocateIndependentPagesEx = GetSymbolOffsetByName(SymbolsInfoArray,"MmAllocateIndependentPagesEx");
+		kernel_MmAllocateIndependentPagesEx = KDSymbolsHandler::GetInstance()->GetOffset(L"MmAllocateIndependentPagesEx");
 		if (!kernel_MmAllocateIndependentPagesEx) {
 			Log(L"[!] Failed to find MmAllocateIndependentPagesEx" << std::endl);
 			return 0;
@@ -500,7 +504,7 @@ bool intel_driver::MmFreeIndependentPages(HANDLE device_handle, uint64_t address
 	if (!kernel_MmFreeIndependentPages)
 	{
 #ifdef PDB_OFFSETS	
-		kernel_MmFreeIndependentPages = GetSymbolOffsetByName(SymbolsInfoArray, "MmFreeIndependentPages");
+		kernel_MmFreeIndependentPages = KDSymbolsHandler::GetInstance()->GetOffset(L"MmFreeIndependentPages");
 #else
 		kernel_MmFreeIndependentPages = intel_driver::FindPatternInSectionAtKernel(device_handle, "PAGE", intel_driver::ntoskrnlAddr,
 			(BYTE*)"\xBA\x00\x60\x00\x00\x48\x8B\xCB\xE8\x00\x00\x00\x00\x48\x8D\x8B\x00\xF0\xFF\xFF",
@@ -538,7 +542,7 @@ BOOLEAN intel_driver::MmSetPageProtection(HANDLE device_handle, uint64_t address
 	if (!kernel_MmSetPageProtection)
 	{
 #ifdef PDB_OFFSETS	
-		kernel_MmSetPageProtection = GetSymbolOffsetByName(SymbolsInfoArray, "MmSetPageProtection");
+		kernel_MmSetPageProtection = KDSymbolsHandler::GetInstance()->GetOffset(L"MmSetPageProtection");
 		if (!kernel_MmSetPageProtection) {
 			Log(L"[!] Failed to find MmSetPageProtection" << std::endl);
 			return FALSE;
@@ -850,14 +854,14 @@ intel_driver::PiDDBCacheEntry* intel_driver::LookupEntry(HANDLE device_handle, P
 bool intel_driver::ClearPiDDBCacheTable(HANDLE device_handle) { //PiDDBCacheTable added on LoadDriver
 
 #ifdef PDB_OFFSETS
-	DWORD PiDDBLockOffset = GetSymbolOffsetByName(SymbolsInfoArray, "PiDDBLock");
+	DWORD PiDDBLockOffset = KDSymbolsHandler::GetInstance()->GetOffset(L"PiDDBLock");
 	if (!PiDDBLockOffset)
 	{
 		Log(L"[-] Warning PiDDBLock not found" << std::endl);
 		return false;
 	}
 
-	DWORD PiDDBCacheTableOffset = GetSymbolOffsetByName(SymbolsInfoArray, "PiDDBCacheTable");
+	DWORD PiDDBCacheTableOffset = KDSymbolsHandler::GetInstance()->GetOffset(L"PiDDBCacheTable");
 	if (!PiDDBLockOffset)
 	{
 		Log(L"[-] Warning PiDDBCacheTable not found" << std::endl);
@@ -1038,14 +1042,14 @@ bool intel_driver::ClearKernelHashBucketList(HANDLE device_handle) {
 
 	//Thanks @KDIo3 and @Swiftik from UnknownCheats
 #ifdef PDB_OFFSETS
-	DWORD g_KernelHashBucketListOffset = GetSymbolOffsetByName(SymbolsInfoArray, "g_KernelHashBucketList");
+	DWORD g_KernelHashBucketListOffset = KDSymbolsHandler::GetInstance()->GetOffset(L"g_KernelHashBucketList");
 	if (!g_KernelHashBucketListOffset)
 	{
 		Log(L"[-] Can't Find g_KernelHashBucketList Offset" << std::endl);
 		return false;
 	}
 
-	DWORD g_HashCacheLockOffset = GetSymbolOffsetByName(SymbolsInfoArray, "g_HashCacheLock");
+	DWORD g_HashCacheLockOffset = KDSymbolsHandler::GetInstance()->GetOffset(L"g_HashCacheLock");
 	if (!g_KernelHashBucketListOffset)
 	{
 		Log(L"[-] Can't Find g_HashCacheLock Offset" << std::endl);

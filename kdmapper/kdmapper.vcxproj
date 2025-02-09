@@ -204,7 +204,7 @@
       <UACExecutionLevel>RequireAdministrator</UACExecutionLevel>
     </Link>
     <PostBuildEvent>
-      <Command>xcopy "$(SolutionDir)Tools" "$(SolutionDir)$(Platform)\$(Configuration)\Tools" /E /H /C /Y /I</Command>
+      <Command>xcopy "$(SolutionDir)DbgHelp\*" "$(SolutionDir)$(Platform)\$(Configuration)" /H /C /Y</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='lib-Release|x64'">
@@ -248,7 +248,7 @@
       <UACExecutionLevel>RequireAdministrator</UACExecutionLevel>
     </Link>
     <PostBuildEvent>
-      <Command>xcopy "$(SolutionDir)Tools" "$(SolutionDir)$(Platform)\lib\Tools" /E /H /C /Y /I</Command>
+      <Command>xcopy "$(SolutionDir)DbgHelp\*" "$(SolutionDir)$(Platform)\lib" /H /C /Y</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -257,18 +257,17 @@
     <ClCompile Include="kdmapper.cpp" />
     <ClCompile Include="portable_executable.cpp" />
     <ClCompile Include="service.cpp" />
-    <ClCompile Include="SymbolsHandler.cpp" />
+    <ClCompile Include="KDSymbolsHandler.cpp" />
     <ClCompile Include="utils.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="include\DataStructs.hpp" />
     <ClInclude Include="include\intel_driver.hpp" />
     <ClInclude Include="include\intel_driver_resource.hpp" />
     <ClInclude Include="include\kdmapper.hpp" />
     <ClInclude Include="include\nt.hpp" />
     <ClInclude Include="include\portable_executable.hpp" />
     <ClInclude Include="include\service.hpp" />
-    <ClInclude Include="include\SymbolsHandler.hpp" />
+    <ClInclude Include="include\KDSymbolsHandler.h" />
     <ClInclude Include="include\utils.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

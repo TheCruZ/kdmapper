@@ -16,9 +16,7 @@
 #include <fstream>
 
 #include "nt.hpp"
-#ifdef PDB_OFFSETS
-#include "SymbolsHandler.hpp"
-#endif
+
 
 namespace utils
 {
@@ -29,4 +27,5 @@ namespace utils
 	BOOLEAN bDataCompare(const BYTE* pData, const BYTE* bMask, const char* szMask);
 	uintptr_t FindPattern(uintptr_t dwAddress, uintptr_t dwLen, BYTE* bMask, const char* szMask);
 	PVOID FindSection(const char* sectionName, uintptr_t modulePtr, PULONG size);
+	std::wstring GetCurrentAppFolder();
 }

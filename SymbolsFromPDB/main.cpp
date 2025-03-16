@@ -25,16 +25,13 @@ int main()
 		L"C:\\Windows\\System32\\ci.dll"
 	};
 
-	if (std::filesystem::exists(L"C:\\Windows\\System32\\drivers\\WdFilter.sys")) {
-		targetBinaries.push_back(L"C:\\Windows\\System32\\drivers\\WdFilter.sys");
-	}
-	else if (std::filesystem::exists(L"C:\\Windows\\System32\\drivers\\wd\\WdFilter.sys")) {
+	/*if (std::filesystem::exists(L"C:\\Windows\\System32\\drivers\\wd\\WdFilter.sys")) {
 		targetBinaries.push_back(L"C:\\Windows\\System32\\drivers\\wd\\WdFilter.sys");
 	}
 	else {
 		std::cout << "[-] Error: WdFilter.sys not found." << std::endl;
 		return -1;
-	}
+	}*/
 
 	std::vector<SymNeeded> symbolsToRetrieve{
 		{ L"ntoskrnl.exe", L"MmAllocateIndependentPagesEx" },
@@ -42,8 +39,8 @@ int main()
 		{ L"ntoskrnl.exe", L"PiDDBLock" },
 		{ L"ntoskrnl.exe", L"PiDDBCacheTable" },
 		{ L"ntoskrnl.exe", L"MmSetPageProtection" },
-		{ L"WdFilter.sys", L"MpBmDocOpenRules" },
-		{ L"WdFilter.sys", L"MpFreeDriverInfoEx" },
+		//{ L"WdFilter.sys", L"MpBmDocOpenRules" },
+		//{ L"WdFilter.sys", L"MpFreeDriverInfoEx" },
 		{ L"ci.dll", L"g_KernelHashBucketList" },
 		{ L"ci.dll", L"g_HashCacheLock" },
 	};

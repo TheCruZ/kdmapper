@@ -49,17 +49,33 @@ Tested from **Windows 10 1607** to **Windows 11 26100.1882** :heavy_check_mark:
 - Return from driver entry fastest as you can to prevent unexpected calls or patch guard, don't ever create a infinite while loop in the driver entry, create a thread or any other procedure to keep code running (if you can't close kdmapper you are doing it wrong)
 - Disable vulnerable driver list if enabled https://support.microsoft.com/en-au/topic/kb5020779-the-vulnerable-driver-blocklist-after-the-october-2022-preview-release-3fcbe13a-6013-4118-b584-fcfbc6a09936
 
-## Parameters
-Just as reminder, in driver entry, **DriverObject and RegistryPath** are **NULL** unless you specify anything! this is a manual mapped driver and not a normal loading procedure
+## Common issues
+
+### BSOD with a simple driver
+In DriverEntry, **DriverObject and RegistryPath** are **NULL** unless you specify anything! this is a manual mapped driver and **not a normal loading procedure**
+
+### Error \\Device\\Nal is already in use.
+
+This means that there is a intel driver already loaded or another instance of kdmapper is running or kdmapper crashed and didn't unload the previous driver.
+
+If you are sure that there is no other instance of kdmapper running, you can try to restart your computer to fix this issue.
+
+If the problem persists, you can try to unload the intel driver manually (If the driver was loaded with kdmapper will have a random name and will be located in %temp%), if not, the driver name is iqvw64e.sys and is installed with your network drivers.
 
 ### Errors 0xC0000022 and 0xC000009A:
-A lot of people ask me about this errors loading the vulnerable driver, both are caused by FACEIT AC since his driver is always running you have to uninstall it
+
+Both are usually caused by FACEIT AC or other Antivirus/AntiCheat
+
+**Note:** Some AntiCheats will keep running even if the game is not open
+
+**Note:** Some Antivirus will keep blocking this even if you disabled them
 
 ### Error 0xC0000603:
 
 The certificate has been blocked as vulnerable and the mapper will return a status of STATUS_IMAGE_CERT_REVOKED. More info at [Microsoft](https://support.microsoft.com/en-au/topic/kb5020779-the-vulnerable-driver-blocklist-after-the-october-2022-preview-release-3fcbe13a-6013-4118-b584-fcfbc6a09936)
 
 If you want to disable your vulnerable driver list you have to open regedit.exe, go to HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\CI\Config and set 'VulnerableDriverBlocklistEnable' as dword with value 0 and restart to apply the changes
+Alternativelty check this [Microsoft](https://support.microsoft.com/en-us/topic/kb5020779-the-vulnerable-driver-blocklist-after-the-october-2022-preview-release-3fcbe13a-6013-4118-b584-fcfbc6a09936)
 
 ## Creators and contributors
 

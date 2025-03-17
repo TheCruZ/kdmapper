@@ -113,6 +113,7 @@ int wmain(const int argc, wchar_t** argv) {
 	bool free = paramExists(argc, argv, L"free") > 0;
 	bool indPagesMode = paramExists(argc, argv, L"indPages") > 0;
 	bool passAllocationPtr = paramExists(argc, argv, L"PassAllocationPtr") > 0;
+	bool copyHeader = paramExists(argc, argv, L"copy-header") > 0;
 
 	if (free) {
 		Log(L"[+] Free pool memory after usage enabled" << std::endl);
@@ -130,6 +131,10 @@ int wmain(const int argc, wchar_t** argv) {
 
 	if (passAllocationPtr) {
 		Log(L"[+] Pass Allocation Ptr as first param enabled" << std::endl);
+	}
+
+	if (copyHeader) {
+		Log(L"[+] Copying driver header enabled" << std::endl);
 	}
 
 #ifdef PDB_OFFSETS
@@ -200,7 +205,7 @@ int wmain(const int argc, wchar_t** argv) {
 	}
 
 	NTSTATUS exitCode = 0;
-	if (!kdmapper::MapDriver(iqvw64e_device_handle, raw_image.data(), 0, 0, free, true, mode, passAllocationPtr, callbackExample, &exitCode)) {
+	if (!kdmapper::MapDriver(iqvw64e_device_handle, raw_image.data(), 0, 0, free, !copyHeader, mode, passAllocationPtr, callbackExample, &exitCode)) {
 		Log(L"[-] Failed to map " << driver_path << std::endl);
 		intel_driver::Unload(iqvw64e_device_handle);
 		PauseIfParentIsExplorer();

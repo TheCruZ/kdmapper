@@ -38,6 +38,7 @@ KDMapper is a simple tool that exploits iqvw64e.sys Intel driver to manually map
 	Added param --offsetsPath "FilePath" to include your own offsets file path (if FilePath contains spaces, it must be enclosed in quotation marks)
 	Added param --dontUpdateOffsets to execute without updating the offsets file (warning: you have to be sure that the offsets are not outdated to your current windows build, or you risk a potential BSOD)
 	Introduced new project "SymbolsFromPDB" that will help KDMapper to adapt quickly to any windows updates by parsing the target .PDB files (PDB_OFFSETS macro must be defined to use this feature)
+	Added param --copy-header to enable the copy driver header option by commandline
 	
 ## Requirements:
 

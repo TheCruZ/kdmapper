@@ -1,9 +1,14 @@
 #include "service.hpp"
+#include <Windows.h>
+#include <string>
+#include <iostream>
 
-bool service::RegisterAndStart(const std::wstring& driver_path) {
+#include "utils.hpp"
+#include "nt.hpp"
+
+bool service::RegisterAndStart(const std::wstring& driver_path, const std::wstring& serviceName) {
 	const static DWORD ServiceTypeKernel = 1;
-	const std::wstring driver_name = intel_driver::GetDriverNameW();
-	const std::wstring servicesPath = L"SYSTEM\\CurrentControlSet\\Services\\" + driver_name;
+	const std::wstring servicesPath = L"SYSTEM\\CurrentControlSet\\Services\\" + serviceName;
 	const std::wstring nPath = L"\\??\\" + driver_path;
 
 	HKEY dservice;
@@ -34,22 +39,22 @@ bool service::RegisterAndStart(const std::wstring& driver_path) {
 		return false;
 	}
 
-	auto RtlAdjustPrivilege = (nt::RtlAdjustPrivilege)GetProcAddress(ntdll, "RtlAdjustPrivilege");
-	auto NtLoadDriver = (nt::NtLoadDriver)GetProcAddress(ntdll, "NtLoadDriver");
+	//auto RtlAdjustPrivilege = (nt::RtlAdjustPrivilege)GetProcAddress(ntdll, "RtlAdjustPrivilege");
+	//auto NtLoadDriver = (nt::NtLoadDriver)GetProcAddress(ntdll, "NtLoadDriver");
 
 	ULONG SE_LOAD_DRIVER_PRIVILEGE = 10UL;
 	BOOLEAN SeLoadDriverWasEnabled;
-	NTSTATUS Status = RtlAdjustPrivilege(SE_LOAD_DRIVER_PRIVILEGE, TRUE, FALSE, &SeLoadDriverWasEnabled);
+	NTSTATUS Status = nt::RtlAdjustPrivilege(SE_LOAD_DRIVER_PRIVILEGE, TRUE, FALSE, &SeLoadDriverWasEnabled);
 	if (!NT_SUCCESS(Status)) {
 		Log("Fatal error: failed to acquire SE_LOAD_DRIVER_PRIVILEGE. Make sure you are running as administrator." << std::endl);
 		return false;
 	}
 
-	std::wstring wdriver_reg_path = L"\\Registry\\Machine\\System\\CurrentControlSet\\Services\\" + driver_name;
+	std::wstring wdriver_reg_path = L"\\Registry\\Machine\\System\\CurrentControlSet\\Services\\" + serviceName;
 	UNICODE_STRING serviceStr;
 	RtlInitUnicodeString(&serviceStr, wdriver_reg_path.c_str());
 
-	Status = NtLoadDriver(&serviceStr);
+	Status = nt::NtLoadDriver(&serviceStr);
 
 
 	Log("[+] NtLoadDriver Status 0x" << std::hex << Status << std::endl);
@@ -72,17 +77,17 @@ bool service::RegisterAndStart(const std::wstring& driver_path) {
 	return NT_SUCCESS(Status);
 }
 
-bool service::StopAndRemove(const std::wstring& driver_name) {
+bool service::StopAndRemove(const std::wstring& serviceName) {
 	HMODULE ntdll = GetModuleHandleA("ntdll.dll");
 	if (ntdll == NULL)
 		return false;
 
-	std::wstring wdriver_reg_path = L"\\Registry\\Machine\\System\\CurrentControlSet\\Services\\" + driver_name;
+	std::wstring wdriver_reg_path = L"\\Registry\\Machine\\System\\CurrentControlSet\\Services\\" + serviceName;
 	UNICODE_STRING serviceStr;
 	RtlInitUnicodeString(&serviceStr, wdriver_reg_path.c_str());
 
 	HKEY driver_service;
-	std::wstring servicesPath = L"SYSTEM\\CurrentControlSet\\Services\\" + driver_name;
+	std::wstring servicesPath = L"SYSTEM\\CurrentControlSet\\Services\\" + serviceName;
 	LSTATUS status = RegOpenKeyW(HKEY_LOCAL_MACHINE, servicesPath.c_str(), &driver_service);
 	if (status != ERROR_SUCCESS) {
 		if (status == ERROR_FILE_NOT_FOUND) {
@@ -92,10 +97,9 @@ bool service::StopAndRemove(const std::wstring& driver_name) {
 	}
 	RegCloseKey(driver_service);
 
-	auto NtUnloadDriver = (nt::NtUnloadDriver)GetProcAddress(ntdll, "NtUnloadDriver");
-	NTSTATUS st = NtUnloadDriver(&serviceStr);
+	NTSTATUS st = nt::NtUnloadDriver(&serviceStr);
 	Log("[+] NtUnloadDriver Status 0x" << std::hex << st << std::endl);
-	if (st != 0x0) {
+	if (st != ERROR_SUCCESS) {
 		Log("[-] Driver Unload Failed!!" << std::endl);
 		status = RegDeleteTreeW(HKEY_LOCAL_MACHINE, servicesPath.c_str());
 		return false; //lets consider unload fail as error because can cause problems with anti cheats later

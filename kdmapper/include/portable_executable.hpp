@@ -1,6 +1,5 @@
 #pragma once
 #include <Windows.h>
-#include <stdint.h>
 #include <vector>
 #include <string>
 
@@ -8,15 +7,15 @@ namespace portable_executable
 {
 	struct RelocInfo
 	{
-		uint64_t address;
-		uint16_t* item;
-		uint32_t count;
+		ULONG64 address;
+		USHORT* item;
+		ULONG32 count;
 	};
 
 	struct ImportFunctionInfo
 	{
 		std::string name;
-		uint64_t* address;
+		ULONG64* address;
 	};
 
 	struct ImportInfo

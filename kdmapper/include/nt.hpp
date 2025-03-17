@@ -5,16 +5,15 @@
 
 namespace nt
 {
-	constexpr auto PAGE_SIZE = 0x1000;
 	constexpr auto STATUS_INFO_LENGTH_MISMATCH = 0xC0000004;
 
 	constexpr auto SystemModuleInformation = 11;
-	constexpr auto SystemHandleInformation = 16;
 	constexpr auto SystemExtendedHandleInformation = 64;
-	
-	typedef NTSTATUS(*NtLoadDriver)(PUNICODE_STRING DriverServiceName);
-	typedef NTSTATUS(*NtUnloadDriver)(PUNICODE_STRING DriverServiceName);
-	typedef NTSTATUS(*RtlAdjustPrivilege)(_In_ ULONG Privilege, _In_ BOOLEAN Enable, _In_ BOOLEAN Client, _Out_ PBOOLEAN WasEnabled);
+
+	extern "C" NTSTATUS NtLoadDriver(PUNICODE_STRING DriverServiceName);
+	extern "C" NTSTATUS NtUnloadDriver(PUNICODE_STRING DriverServiceName);
+	extern "C" NTSTATUS RtlAdjustPrivilege(ULONG Privilege, BOOLEAN Enable, BOOLEAN Client, BOOLEAN* WasEnabled);
+
 
 	typedef struct _SYSTEM_HANDLE
 	{
@@ -82,34 +81,44 @@ namespace nt
 		RTL_PROCESS_MODULE_INFORMATION Modules[1];
 	} RTL_PROCESS_MODULES, *PRTL_PROCESS_MODULES;
 
-	/*added by psec*/
-	typedef enum _MEMORY_CACHING_TYPE_ORIG {
-		MmFrameBufferCached = 2
-	} MEMORY_CACHING_TYPE_ORIG;
+	typedef struct _HashBucketEntry
+	{
+		struct _HashBucketEntry* Next;
+		UNICODE_STRING DriverName;
+		ULONG CertHash[5];
+	} HashBucketEntry, * PHashBucketEntry;
 
-	typedef enum _MEMORY_CACHING_TYPE {
-		MmNonCached = FALSE,
-		MmCached = TRUE,
-		MmWriteCombined = MmFrameBufferCached,
-		MmHardwareCoherentCached,
-		MmNonCachedUnordered,       // IA64
-		MmUSWCCached,
-		MmMaximumCacheType,
-		MmNotMapped = -1
-	} MEMORY_CACHING_TYPE;
 
-	typedef CCHAR KPROCESSOR_MODE;
+	typedef struct _RTL_BALANCED_LINKS {
+		struct _RTL_BALANCED_LINKS* Parent;
+		struct _RTL_BALANCED_LINKS* LeftChild;
+		struct _RTL_BALANCED_LINKS* RightChild;
+		CHAR Balance;
+		UCHAR Reserved[3];
+	} RTL_BALANCED_LINKS;
+	typedef RTL_BALANCED_LINKS* PRTL_BALANCED_LINKS;
 
-	typedef enum _MODE {
-		KernelMode,
-		UserMode,
-		MaximumMode
-	} MODE;
+	typedef struct _RTL_AVL_TABLE {
+		RTL_BALANCED_LINKS BalancedRoot;
+		PVOID OrderedPointer;
+		ULONG WhichOrderedElement;
+		ULONG NumberGenericTableElements;
+		ULONG DepthOfTree;
+		PVOID RestartKey;
+		ULONG DeleteCount;
+		PVOID CompareRoutine;
+		PVOID AllocateRoutine;
+		PVOID FreeRoutine;
+		PVOID TableContext;
+	} RTL_AVL_TABLE;
+	typedef RTL_AVL_TABLE* PRTL_AVL_TABLE;
 
-	typedef enum _MM_PAGE_PRIORITY {
-		LowPagePriority,
-		NormalPagePriority = 16,
-		HighPagePriority = 32
-	} MM_PAGE_PRIORITY;
-	/**/
+	typedef struct _PiDDBCacheEntry
+	{
+		LIST_ENTRY		List;
+		UNICODE_STRING	DriverName;
+		ULONG			TimeDateStamp;
+		NTSTATUS		LoadStatus;
+		char			_0x0028[16]; // data from the shim engine, or uninitialized memory for custom drivers
+	} PiDDBCacheEntry, * NPiDDBCacheEntry;
 }

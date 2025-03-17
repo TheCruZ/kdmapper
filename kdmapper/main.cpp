@@ -1,12 +1,15 @@
 #ifndef KDLIBMODE
 
-//#include <Windows.h>
+#include <Windows.h>
+#include <iostream>
 #include <string>
 #include <vector>
 #include <filesystem>
-
+#include <TlHelp32.h>
 
 #include "kdmapper.hpp"
+#include "utils.hpp"
+#include "intel_driver.hpp"
 
 #ifdef PDB_OFFSETS
 #include "KDSymbolsHandler.h"
@@ -99,11 +102,14 @@ void PauseIfParentIsExplorer() {
 
 void help() {
 	Log(L"\r\n\r\n[!] Incorrect Usage!" << std::endl);
+	Log(L"[+] Usage: kdmapper.exe [--free | --indPages][--PassAllocationPtr][--copy-header]");
+
 #ifdef PDB_OFFSETS
-	Log(L"[+] Usage: kdmapper.exe [--dontUpdateOffsets [--offsetsPath \"FilePath\"]][--free | --indPages][--PassAllocationPtr] driver" << std::endl); 
-#else
-	Log(L"[+] Usage: kdmapper.exe [--free | --indPages][--PassAllocationPtr] driver" << std::endl);
+	Log(L"[--dontUpdateOffsets [--offsetsPath \"FilePath\"]]"); 
 #endif
+	
+	Log(L" driver" << std::endl);
+
 	PauseIfParentIsExplorer();
 }
 

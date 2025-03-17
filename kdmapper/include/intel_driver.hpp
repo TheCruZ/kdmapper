@@ -1,114 +1,25 @@
 #pragma once
 #include <Windows.h>
-#include <iostream>
 #include <string>
-#include <memory>
-#include <stdint.h>
+#include <iostream>
 
-#include "intel_driver_resource.hpp"
-#include "service.hpp"
+
 #include "utils.hpp"
+#include "nt.hpp"
 
 namespace intel_driver
 {
-	extern char driver_name[100]; //"iqvw64e.sys"
-	constexpr uint32_t ioctl1 = 0x80862007;
+	constexpr ULONG32 ioctl1 = 0x80862007;
 	constexpr DWORD iqvw64e_timestamp = 0x5284EAC3;
 	extern ULONG64 ntoskrnlAddr;
 
-	typedef struct _COPY_MEMORY_BUFFER_INFO
-	{
-		uint64_t case_number;
-		uint64_t reserved;
-		uint64_t source;
-		uint64_t destination;
-		uint64_t length;
-	}COPY_MEMORY_BUFFER_INFO, * PCOPY_MEMORY_BUFFER_INFO;
-
-	typedef struct _FILL_MEMORY_BUFFER_INFO
-	{
-		uint64_t case_number;
-		uint64_t reserved1;
-		uint32_t value;
-		uint32_t reserved2;
-		uint64_t destination;
-		uint64_t length;
-	}FILL_MEMORY_BUFFER_INFO, * PFILL_MEMORY_BUFFER_INFO;
-
-	typedef struct _GET_PHYS_ADDRESS_BUFFER_INFO
-	{
-		uint64_t case_number;
-		uint64_t reserved;
-		uint64_t return_physical_address;
-		uint64_t address_to_translate;
-	}GET_PHYS_ADDRESS_BUFFER_INFO, * PGET_PHYS_ADDRESS_BUFFER_INFO;
-
-	typedef struct _MAP_IO_SPACE_BUFFER_INFO
-	{
-		uint64_t case_number;
-		uint64_t reserved;
-		uint64_t return_value;
-		uint64_t return_virtual_address;
-		uint64_t physical_address_to_map;
-		uint32_t size;
-	}MAP_IO_SPACE_BUFFER_INFO, * PMAP_IO_SPACE_BUFFER_INFO;
-
-	typedef struct _UNMAP_IO_SPACE_BUFFER_INFO
-	{
-		uint64_t case_number;
-		uint64_t reserved1;
-		uint64_t reserved2;
-		uint64_t virt_address;
-		uint64_t reserved3;
-		uint32_t number_of_bytes;
-	}UNMAP_IO_SPACE_BUFFER_INFO, * PUNMAP_IO_SPACE_BUFFER_INFO;
-
-	typedef struct _RTL_BALANCED_LINKS {
-		struct _RTL_BALANCED_LINKS* Parent;
-		struct _RTL_BALANCED_LINKS* LeftChild;
-		struct _RTL_BALANCED_LINKS* RightChild;
-		CHAR Balance;
-		UCHAR Reserved[3];
-	} RTL_BALANCED_LINKS;
-	typedef RTL_BALANCED_LINKS* PRTL_BALANCED_LINKS;
-
-	typedef struct _RTL_AVL_TABLE {
-		RTL_BALANCED_LINKS BalancedRoot;
-		PVOID OrderedPointer;
-		ULONG WhichOrderedElement;
-		ULONG NumberGenericTableElements;
-		ULONG DepthOfTree;
-		PVOID RestartKey;
-		ULONG DeleteCount;
-		PVOID CompareRoutine;
-		PVOID AllocateRoutine;
-		PVOID FreeRoutine;
-		PVOID TableContext;
-	} RTL_AVL_TABLE;
-	typedef RTL_AVL_TABLE* PRTL_AVL_TABLE;
-
-	typedef struct _PiDDBCacheEntry
-	{
-		LIST_ENTRY		List;
-		UNICODE_STRING	DriverName;
-		ULONG			TimeDateStamp;
-		NTSTATUS		LoadStatus;
-		char			_0x0028[16]; // data from the shim engine, or uninitialized memory for custom drivers
-	} PiDDBCacheEntry, * NPiDDBCacheEntry;
-
-	typedef struct _HashBucketEntry
-	{
-		struct _HashBucketEntry* Next;
-		UNICODE_STRING DriverName;
-		ULONG CertHash[5];
-	} HashBucketEntry, * PHashBucketEntry;
 
 	bool ClearPiDDBCacheTable(HANDLE device_handle);
 	bool ExAcquireResourceExclusiveLite(HANDLE device_handle, PVOID Resource, BOOLEAN wait);
 	bool ExReleaseResourceLite(HANDLE device_handle, PVOID Resource);
 	BOOLEAN RtlDeleteElementGenericTableAvl(HANDLE device_handle, PVOID Table, PVOID Buffer);
-	PVOID RtlLookupElementGenericTableAvl(HANDLE device_handle, PRTL_AVL_TABLE Table, PVOID Buffer);
-	PiDDBCacheEntry* LookupEntry(HANDLE device_handle, PRTL_AVL_TABLE PiDDBCacheTable, ULONG timestamp, const wchar_t * name);
+	PVOID RtlLookupElementGenericTableAvl(HANDLE device_handle, nt::PRTL_AVL_TABLE Table, PVOID Buffer);
+	nt::PiDDBCacheEntry* LookupEntry(HANDLE device_handle, nt::PRTL_AVL_TABLE PiDDBCacheTable, ULONG timestamp, const wchar_t * name);
 	PVOID ResolveRelativeAddress(HANDLE device_handle, _In_ PVOID Instruction, _In_ ULONG OffsetOffset, _In_ ULONG InstructionSize);
 	bool AcquireDebugPrivilege();
 

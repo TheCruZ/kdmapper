@@ -1,14 +1,10 @@
-#include "KDSymbolsHandler.h"
-
-//for use in KDMapper
-
 #ifdef PDB_OFFSETS
 
+#include "KDSymbolsHandler.h"
 #include <string>
-#include <vector>
-#include <filesystem>
-#include <fstream>
 #include <iostream>
+#include <fstream>
+#include <filesystem>
 
 #include "utils.hpp"
 

@@ -156,28 +156,28 @@ bool intel_driver::ClearWdFilterDriverList(HANDLE device_handle) {
 		return true;
 	}
 
-#ifdef PDB_OFFSETS
-	uintptr_t MpBmDocOpenRules = KDSymbolsHandler::GetInstance()->GetOffset(L"MpBmDocOpenRules");
-	if (!MpBmDocOpenRules)
-	{
-		Log("[-] Failed To Get MpBmDocOpenRules." << std::endl);
-		return false;
-	}
-	MpBmDocOpenRules += WdFilter;
-
-	uintptr_t RuntimeDriversList_Head = MpBmDocOpenRules + 0x70;
-	uintptr_t RuntimeDriversCount = MpBmDocOpenRules + 0x60;
-	uintptr_t RuntimeDriversArray = MpBmDocOpenRules + 0x68;
-	ReadMemory(device_handle, RuntimeDriversArray, &RuntimeDriversArray, sizeof(uintptr_t));
-
-	uintptr_t MpFreeDriverInfoEx = KDSymbolsHandler::GetInstance()->GetOffset(L"MpFreeDriverInfoEx");
-	if (!MpFreeDriverInfoEx)
-	{
-		Log("[-] Failed To Get MpFreeDriverInfoEx." << std::endl);
-		return false;
-	}
-	MpFreeDriverInfoEx += WdFilter;
-#else
+//#ifdef PDB_OFFSETS
+//	uintptr_t MpBmDocOpenRules = KDSymbolsHandler::GetInstance()->GetOffset(L"MpBmDocOpenRules");
+//	if (!MpBmDocOpenRules)
+//	{
+//		Log("[-] Failed To Get MpBmDocOpenRules." << std::endl);
+//		return false;
+//	}
+//	MpBmDocOpenRules += WdFilter;
+//
+//	uintptr_t RuntimeDriversList_Head = MpBmDocOpenRules + 0x70;
+//	uintptr_t RuntimeDriversCount = MpBmDocOpenRules + 0x60;
+//	uintptr_t RuntimeDriversArray = MpBmDocOpenRules + 0x68;
+//	ReadMemory(device_handle, RuntimeDriversArray, &RuntimeDriversArray, sizeof(uintptr_t));
+//
+//	uintptr_t MpFreeDriverInfoEx = KDSymbolsHandler::GetInstance()->GetOffset(L"MpFreeDriverInfoEx");
+//	if (!MpFreeDriverInfoEx)
+//	{
+//		Log("[-] Failed To Get MpFreeDriverInfoEx." << std::endl);
+//		return false;
+//	}
+//	MpFreeDriverInfoEx += WdFilter;
+//#else
 	auto RuntimeDriversList = FindPatternInSectionAtKernel(device_handle, "PAGE", WdFilter, (PUCHAR)"\x48\x8B\x0D\x00\x00\x00\x00\xFF\x05", "xxx????xx");
 	if (!RuntimeDriversList) {
 		Log("[!] Failed to find WdFilter RuntimeDriversList" << std::endl);
@@ -226,7 +226,7 @@ bool intel_driver::ClearWdFilterDriverList(HANDLE device_handle) {
 	uintptr_t RuntimeDriversArray = RuntimeDriversCount + 0x8;
 	ReadMemory(device_handle, RuntimeDriversArray, &RuntimeDriversArray, sizeof(uintptr_t));
 	uintptr_t MpFreeDriverInfoEx = (uintptr_t)ResolveRelativeAddress(device_handle, (PVOID)MpFreeDriverInfoExRef, 1, 5);
-#endif
+//#endif
 
 	auto ReadListEntry = [&](uintptr_t Address) -> LIST_ENTRY* { // Useful lambda to read LIST_ENTRY
 		LIST_ENTRY* Entry;
@@ -505,6 +505,11 @@ bool intel_driver::MmFreeIndependentPages(HANDLE device_handle, uint64_t address
 	{
 #ifdef PDB_OFFSETS	
 		kernel_MmFreeIndependentPages = KDSymbolsHandler::GetInstance()->GetOffset(L"MmFreeIndependentPages");
+		if (!kernel_MmFreeIndependentPages) {
+			Log(L"[!] Failed to find MmFreeIndependentPages" << std::endl);
+			return false;
+		}
+		kernel_MmFreeIndependentPages += intel_driver::ntoskrnlAddr;
 #else
 		kernel_MmFreeIndependentPages = intel_driver::FindPatternInSectionAtKernel(device_handle, "PAGE", intel_driver::ntoskrnlAddr,
 			(BYTE*)"\xBA\x00\x60\x00\x00\x48\x8B\xCB\xE8\x00\x00\x00\x00\x48\x8D\x8B\x00\xF0\xFF\xFF",
@@ -517,12 +522,11 @@ bool intel_driver::MmFreeIndependentPages(HANDLE device_handle, uint64_t address
 		kernel_MmFreeIndependentPages += 8;
 
 		kernel_MmFreeIndependentPages = (uint64_t)ResolveRelativeAddress(device_handle, (PVOID)kernel_MmFreeIndependentPages, 1, 5);
-#endif
 		if (!kernel_MmFreeIndependentPages) {
 			Log(L"[!] Failed to find MmFreeIndependentPages" << std::endl);
 			return false;
 		}
-		kernel_MmFreeIndependentPages += intel_driver::ntoskrnlAddr;
+#endif
 	}
 
 	uint64_t result{};

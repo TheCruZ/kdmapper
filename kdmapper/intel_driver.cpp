@@ -219,28 +219,28 @@ bool intel_driver::ClearWdFilterDriverList(HANDLE device_handle) {
 		return true;
 	}
 
-//#ifdef PDB_OFFSETS
-//	uintptr_t MpBmDocOpenRules = KDSymbolsHandler::GetInstance()->GetOffset(L"MpBmDocOpenRules");
-//	if (!MpBmDocOpenRules)
-//	{
-//		Log("[-] Failed To Get MpBmDocOpenRules." << std::endl);
-//		return false;
-//	}
-//	MpBmDocOpenRules += WdFilter;
-//
-//	uintptr_t RuntimeDriversList_Head = MpBmDocOpenRules + 0x70;
-//	uintptr_t RuntimeDriversCount = MpBmDocOpenRules + 0x60;
-//	uintptr_t RuntimeDriversArray = MpBmDocOpenRules + 0x68;
-//	ReadMemory(device_handle, RuntimeDriversArray, &RuntimeDriversArray, sizeof(uintptr_t));
-//
-//	uintptr_t MpFreeDriverInfoEx = KDSymbolsHandler::GetInstance()->GetOffset(L"MpFreeDriverInfoEx");
-//	if (!MpFreeDriverInfoEx)
-//	{
-//		Log("[-] Failed To Get MpFreeDriverInfoEx." << std::endl);
-//		return false;
-//	}
-//	MpFreeDriverInfoEx += WdFilter;
-//#else
+#ifdef PDB_OFFSETS
+	uintptr_t MpBmDocOpenRules = KDSymbolsHandler::GetInstance()->GetOffset(L"MpBmDocOpenRules");
+	if (!MpBmDocOpenRules)
+	{
+		Log("[-] Failed To Get MpBmDocOpenRules." << std::endl);
+		return false;
+	}
+	MpBmDocOpenRules += WdFilter;
+
+	uintptr_t RuntimeDriversList_Head = MpBmDocOpenRules + 0x70;
+	uintptr_t RuntimeDriversCount = MpBmDocOpenRules + 0x60;
+	uintptr_t RuntimeDriversArray = MpBmDocOpenRules + 0x68;
+	ReadMemory(device_handle, RuntimeDriversArray, &RuntimeDriversArray, sizeof(uintptr_t));
+
+	uintptr_t MpFreeDriverInfoEx = KDSymbolsHandler::GetInstance()->GetOffset(L"MpFreeDriverInfoEx");
+	if (!MpFreeDriverInfoEx)
+	{
+		Log("[-] Failed To Get MpFreeDriverInfoEx." << std::endl);
+		return false;
+	}
+	MpFreeDriverInfoEx += WdFilter;
+#else
 	auto RuntimeDriversList = FindPatternInSectionAtKernel(device_handle, "PAGE", WdFilter, (PUCHAR)"\x48\x8B\x0D\x00\x00\x00\x00\xFF\x05", "xxx????xx");
 	if (!RuntimeDriversList) {
 		Log("[!] Failed to find WdFilter RuntimeDriversList" << std::endl);
@@ -289,7 +289,7 @@ bool intel_driver::ClearWdFilterDriverList(HANDLE device_handle) {
 	uintptr_t RuntimeDriversArray = RuntimeDriversCount + 0x8;
 	ReadMemory(device_handle, RuntimeDriversArray, &RuntimeDriversArray, sizeof(uintptr_t));
 	uintptr_t MpFreeDriverInfoEx = (uintptr_t)ResolveRelativeAddress(device_handle, (PVOID)MpFreeDriverInfoExRef, 1, 5);
-//#endif
+#endif
 
 	auto ReadListEntry = [&](uintptr_t Address) -> LIST_ENTRY* { // Useful lambda to read LIST_ENTRY
 		LIST_ENTRY* Entry;

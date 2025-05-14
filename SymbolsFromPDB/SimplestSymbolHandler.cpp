@@ -55,7 +55,13 @@ std::wstring SimplestSymbolHandler::GetPDB(const std::wstring binaryPath) {
 		NULL
 	);
 
-	return std::wstring(pdbPath.get());
+	auto resultPath = std::wstring(pdbPath.get());
+	// Windows don't provide symsrv.dll and dbghelp loads it from his current path, if its not loaded after those calls means that symsrv/dbghelp are invalid
+	if (resultPath.empty() && GetModuleHandleA("symsrv.dll") == nullptr) {
+		std::wcout << "[-] Please provide proper dbghelp.dll and symsrv.dll!" << std::endl;
+	}
+
+	return resultPath;
 }
 
 std::vector<ULONG64> SimplestSymbolHandler::GetOffset(std::wstring pdbPath, std::vector<std::wstring> symbolName) {

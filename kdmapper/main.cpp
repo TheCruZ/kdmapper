@@ -103,13 +103,10 @@ void PauseIfParentIsExplorer() {
 void help() {
 	Log(L"\r\n\r\n[!] Incorrect Usage!" << std::endl);
 	Log(L"[+] Usage: kdmapper.exe [--free | --indPages][--PassAllocationPtr][--copy-header]");
-
 #ifdef PDB_OFFSETS
 	Log(L"[--dontUpdateOffsets [--offsetsPath \"FilePath\"]]"); 
 #endif
-	
-	Log(L" driver" << std::endl);
-
+	Log(L" [--url \"URL\"] driver" << std::endl);
 	PauseIfParentIsExplorer();
 }
 
@@ -120,6 +117,7 @@ int wmain(const int argc, wchar_t** argv) {
 	bool indPagesMode = paramExists(argc, argv, L"indPages") > 0;
 	bool passAllocationPtr = paramExists(argc, argv, L"PassAllocationPtr") > 0;
 	bool copyHeader = paramExists(argc, argv, L"copy-header") > 0;
+	int urlIndex = paramExists(argc, argv, L"url");
 
 	if (free) {
 		Log(L"[+] Free pool memory after usage enabled" << std::endl);
@@ -168,17 +166,37 @@ int wmain(const int argc, wchar_t** argv) {
 		}
 	}
 
-	if (drvIndex <= 0) {
+	if (drvIndex <= 0 && urlIndex <= 0) {
 		help();
 		return -1;
 	}
 
-	const std::wstring driver_path = argv[drvIndex];
-
-	if (!std::filesystem::exists(driver_path)) {
-		Log(L"[-] File " << driver_path << L" doesn't exist" << std::endl);
-		PauseIfParentIsExplorer();
-		return -1;
+	std::vector<uint8_t> raw_image;
+	if (urlIndex > 0) {
+		if (urlIndex + 1 >= argc) {
+			Log(L"[-] URL parameter requires a value" << std::endl);
+			help();
+			return -1;
+		}
+		std::wstring url = argv[urlIndex + 1];
+		Log(L"[+] Downloading driver from URL: " << url << std::endl);
+		if (!utils::DownloadFromUrl(url, &raw_image)) {
+			Log(L"[-] Failed to download driver from URL" << std::endl);
+			PauseIfParentIsExplorer();
+			return -1;
+		}
+	} else {
+		const std::wstring driver_path = argv[drvIndex];
+		if (!std::filesystem::exists(driver_path)) {
+			Log(L"[-] File " << driver_path << L" doesn't exist" << std::endl);
+			PauseIfParentIsExplorer();
+			return -1;
+		}
+		if (!utils::ReadFileToMemory(driver_path, &raw_image)) {
+			Log(L"[-] Failed to read image to memory" << std::endl);
+			PauseIfParentIsExplorer();
+			return -1;
+		}
 	}
 
 #ifdef PDB_OFFSETS
@@ -196,14 +214,6 @@ int wmain(const int argc, wchar_t** argv) {
 		return -1;
 	}
 
-	std::vector<uint8_t> raw_image = { 0 };
-	if (!utils::ReadFileToMemory(driver_path, &raw_image)) {
-		Log(L"[-] Failed to read image to memory" << std::endl);
-		intel_driver::Unload(iqvw64e_device_handle);
-		PauseIfParentIsExplorer();
-		return -1;
-	}
-
 	kdmapper::AllocationMode mode = kdmapper::AllocationMode::AllocatePool;
 
 	if (indPagesMode) {
@@ -212,7 +222,7 @@ int wmain(const int argc, wchar_t** argv) {
 
 	NTSTATUS exitCode = 0;
 	if (!kdmapper::MapDriver(iqvw64e_device_handle, raw_image.data(), 0, 0, free, !copyHeader, mode, passAllocationPtr, callbackExample, &exitCode)) {
-		Log(L"[-] Failed to map " << driver_path << std::endl);
+		Log(L"[-] Failed to map driver" << std::endl);
 		intel_driver::Unload(iqvw64e_device_handle);
 		PauseIfParentIsExplorer();
 		return -1;
@@ -223,7 +233,6 @@ int wmain(const int argc, wchar_t** argv) {
 		PauseIfParentIsExplorer();
 	}
 	Log(L"[+] success" << std::endl);
-
 }
 
 #endif

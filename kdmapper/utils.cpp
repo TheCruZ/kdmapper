@@ -3,8 +3,13 @@
 #include <iostream>
 #include <vector>
 #include <fstream>
+#include <winhttp.h>
+#include <string>
+#include <filesystem>
 
 #include "nt.hpp"
+
+#pragma comment(lib, "winhttp.lib")
 
 std::wstring utils::GetFullTempPath() {
 	wchar_t temp_directory[MAX_PATH + 1] = { 0 };
@@ -123,4 +128,142 @@ std::wstring utils::GetCurrentAppFolder() {
 	GetModuleFileNameW(NULL, buffer, 1024);
 	std::wstring::size_type pos = std::wstring(buffer).find_last_of(L"\\/");
 	return std::wstring(buffer).substr(0, pos);
+}
+
+bool utils::DownloadFromUrl(const std::wstring& url, std::vector<uint8_t>* out_buffer) {
+	HINTERNET hSession = WinHttpOpen(L"KDMapper/1.0", 
+								   WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
+								   WINHTTP_NO_PROXY_NAME, 
+								   WINHTTP_NO_PROXY_BYPASS, 
+								   0);
+	if (!hSession) {
+		Log(L"[-] Failed to initialize WinHTTP session" << std::endl);
+		return false;
+	}
+
+	// Parse URL
+	URL_COMPONENTS urlComp;
+	ZeroMemory(&urlComp, sizeof(urlComp));
+	urlComp.dwStructSize = sizeof(urlComp);
+
+	// Allocate memory for URL components
+	wchar_t hostName[256] = { 0 };
+	wchar_t urlPath[1024] = { 0 };
+	wchar_t extraInfo[256] = { 0 };
+	wchar_t scheme[32] = { 0 };
+
+	urlComp.lpszHostName = hostName;
+	urlComp.dwHostNameLength = sizeof(hostName) / sizeof(wchar_t);
+	urlComp.lpszUrlPath = urlPath;
+	urlComp.dwUrlPathLength = sizeof(urlPath) / sizeof(wchar_t);
+	urlComp.lpszExtraInfo = extraInfo;
+	urlComp.dwExtraInfoLength = sizeof(extraInfo) / sizeof(wchar_t);
+	urlComp.lpszScheme = scheme;
+	urlComp.dwSchemeLength = sizeof(scheme) / sizeof(wchar_t);
+
+	if (!WinHttpCrackUrl(url.c_str(), 0, 0, &urlComp)) {
+		Log(L"[-] Failed to parse URL. Error: " << GetLastError() << std::endl);
+		WinHttpCloseHandle(hSession);
+		return false;
+	}
+
+	// Determine port and scheme
+	INTERNET_PORT port = urlComp.nPort;
+	DWORD flags = 0;
+	
+	if (urlComp.nScheme == INTERNET_SCHEME_HTTPS) {
+		flags = WINHTTP_FLAG_SECURE;
+		if (port == 0) port = 443;
+	} else if (port == 0) {
+		port = INTERNET_DEFAULT_HTTP_PORT;
+	}
+
+	// Connect to server
+	HINTERNET hConnect = WinHttpConnect(hSession, 
+									  urlComp.lpszHostName,
+									  port, 
+									  0);
+	if (!hConnect) {
+		Log(L"[-] Failed to connect to server. Error: " << GetLastError() << std::endl);
+		WinHttpCloseHandle(hSession);
+		return false;
+	}
+
+	// Create request
+	HINTERNET hRequest = WinHttpOpenRequest(hConnect,
+										  L"GET",
+										  urlComp.lpszUrlPath,
+										  NULL,
+										  WINHTTP_NO_REFERER,
+										  WINHTTP_DEFAULT_ACCEPT_TYPES,
+										  flags);
+	if (!hRequest) {
+		Log(L"[-] Failed to create request. Error: " << GetLastError() << std::endl);
+		WinHttpCloseHandle(hConnect);
+		WinHttpCloseHandle(hSession);
+		return false;
+	}
+
+	// Send request
+	if (!WinHttpSendRequest(hRequest,
+						   WINHTTP_NO_ADDITIONAL_HEADERS,
+						   0,
+						   WINHTTP_NO_REQUEST_DATA,
+						   0,
+						   0,
+						   0)) {
+		Log(L"[-] Failed to send request. Error: " << GetLastError() << std::endl);
+		WinHttpCloseHandle(hRequest);
+		WinHttpCloseHandle(hConnect);
+		WinHttpCloseHandle(hSession);
+		return false;
+	}
+
+	// Receive response
+	if (!WinHttpReceiveResponse(hRequest, NULL)) {
+		Log(L"[-] Failed to receive response. Error: " << GetLastError() << std::endl);
+		WinHttpCloseHandle(hRequest);
+		WinHttpCloseHandle(hConnect);
+		WinHttpCloseHandle(hSession);
+		return false;
+	}
+
+	// Get response size
+	DWORD dwSize = 0;
+	DWORD dwDownloaded = 0;
+	std::vector<uint8_t> buffer;
+
+	do {
+		dwSize = 0;
+		if (!WinHttpQueryDataAvailable(hRequest, &dwSize)) {
+			Log(L"[-] Failed to query data size. Error: " << GetLastError() << std::endl);
+			break;
+		}
+
+		if (dwSize == 0) break;
+
+		size_t oldSize = buffer.size();
+		buffer.resize(oldSize + dwSize);
+
+		if (!WinHttpReadData(hRequest, 
+						   buffer.data() + oldSize,
+						   dwSize,
+						   &dwDownloaded)) {
+			Log(L"[-] Failed to read data. Error: " << GetLastError() << std::endl);
+			break;
+		}
+	} while (dwSize > 0);
+
+	// Cleanup
+	WinHttpCloseHandle(hRequest);
+	WinHttpCloseHandle(hConnect);
+	WinHttpCloseHandle(hSession);
+
+	if (buffer.empty()) {
+		Log(L"[-] No data downloaded" << std::endl);
+		return false;
+	}
+
+	*out_buffer = std::move(buffer);
+	return true;
 }

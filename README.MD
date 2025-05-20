@@ -1,5 +1,8 @@
 # KDMapper
 
+## Fork
+This is a fork of original KDMapper with url fetch feature.
+
 KDMapper is a simple tool that exploits iqvw64e.sys Intel driver to manually map non-signed drivers in memory
 
 Tested from **Windows 10 1607** to **Windows 11 24H2 26100.3915** :heavy_check_mark:

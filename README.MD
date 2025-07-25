@@ -51,6 +51,21 @@ Tested from **Windows 10 1607** to **Windows 11 24H2 26100.4351** :heavy_check_m
 
 ## Common issues
 
+If you see the following messages in the console:
+
+```cmd
+[!] Failed to find WdFilter MpFreeDriverInfoEx  
+[!] Failed to ClearWdFilterDriverList  
+```
+
+You must run kdmapper_Debug.exe instead of kdmapper_Release.exe to ensure:
+
+- Full debug symbols and runtime checks are available
+
+- The process acquires necessary privileges (like SeDebugPrivilege)
+
+- Output helps you troubleshoot failures properly
+
 ### BSOD with a simple driver
 In DriverEntry, **DriverObject and RegistryPath** are **NULL** unless you specify anything! this is a manual mapped driver and **not a normal loading procedure**
 
@@ -86,7 +101,5 @@ Updated and improved by https://github.com/TheCruZ
 Initial PDB offsets parser written by https://github.com/Mohi-eddine
 
 Independent Pages allocation written by https://github.com/Herooyyy/
-
-
 
 Have Fun!!

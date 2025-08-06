@@ -85,8 +85,7 @@ Updated and improved by https://github.com/TheCruZ
 
 Initial PDB offsets parser written by https://github.com/Mohi-eddine
 
-Independent Pages allocation written by https://github.com/Herooyyy/
-
 
 
 Have Fun!!
+

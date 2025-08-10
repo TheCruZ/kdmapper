@@ -7,25 +7,6 @@
 #include "nt.hpp"
 #include "portable_executable.hpp"
 
-ULONG64 AllocIndependentPages(HANDLE device_handle, ULONG32 size)
-{
-	const auto base = intel_driver::MmAllocateIndependentPagesEx(device_handle, size);
-	if (!base)
-	{
-		Log(L"[-] Error allocating independent pages" << std::endl);
-		return 0;
-	}
-
-	if (!intel_driver::MmSetPageProtection(device_handle, base, size, PAGE_EXECUTE_READWRITE))
-	{
-		Log(L"[-] Failed to change page protections" << std::endl);
-		intel_driver::MmFreeIndependentPages(device_handle, base, size);
-		return 0;
-	}
-
-	return base;
-}
-
 void RelocateImageByDelta(portable_executable::vec_relocs relocs, const ULONG64 delta) {
 	for (const auto& current_reloc : relocs) {
 		for (auto i = 0u; i < current_reloc.count; ++i) {
@@ -134,8 +115,9 @@ ULONG64 kdmapper::MapDriver(HANDLE iqvw64e_device_handle, BYTE* data, ULONG64 pa
 	image_size = image_size - (destroyHeader ? TotalVirtualHeaderSize : 0);
 
 	ULONG64 kernel_image_base = 0;
-	if (mode == AllocationMode::AllocateIndependentPages) {
-		kernel_image_base = AllocIndependentPages(iqvw64e_device_handle, image_size);
+	if (mode == AllocationMode::AllocateIndependentPages)
+	{
+		kernel_image_base = intel_driver::MmAllocateIndependentPagesEx(iqvw64e_device_handle, image_size);
 	}
 	else { // AllocatePool by default
 		kernel_image_base = intel_driver::AllocatePool(iqvw64e_device_handle, nt::POOL_TYPE::NonPagedPool, image_size);
@@ -194,6 +176,52 @@ ULONG64 kdmapper::MapDriver(HANDLE iqvw64e_device_handle, BYTE* data, ULONG64 pa
 			Log(L"[-] Failed to write local image to remote image" << std::endl);
 			kernel_image_base = realBase;
 			break;
+		}
+
+		if (mode == AllocationMode::AllocateIndependentPages)
+		{
+			auto ProtectionToString = [](ULONG prot) -> const char* {
+				switch (prot)
+				{
+				case PAGE_NOACCESS: return "NOACCESS";
+				case PAGE_READONLY: return "READONLY";
+				case PAGE_READWRITE: return "READWRITE";
+				case PAGE_EXECUTE: return "EXECUTE";
+				case PAGE_EXECUTE_READ: return "EXECUTE_READ";
+				case PAGE_EXECUTE_READWRITE: return "EXECUTE_READWRITE";
+				default: return "UNKNOWN";
+				}
+				};
+
+			for (int i = 0; i < nt_headers->FileHeader.NumberOfSections; i++) {
+				auto sec = &IMAGE_FIRST_SECTION(nt_headers)[i];
+				uintptr_t secAddr = kernel_image_base + sec->VirtualAddress;
+				uint32_t secSize = sec->Misc.VirtualSize;
+
+				ULONG prot = PAGE_NOACCESS;
+
+				if (sec->Characteristics & IMAGE_SCN_MEM_EXECUTE) {
+					prot = (sec->Characteristics & IMAGE_SCN_MEM_WRITE) ?
+						PAGE_EXECUTE_READWRITE : PAGE_EXECUTE_READ;
+				}
+				else if (sec->Characteristics & IMAGE_SCN_MEM_WRITE) {
+					prot = PAGE_READWRITE;
+				}
+				else if (sec->Characteristics & IMAGE_SCN_MEM_READ) {
+					prot = PAGE_READONLY;
+				}
+
+				Log(L"[+] Setting protection for section: "
+					<< (char*)sec->Name
+					<< L" Base: 0x" << std::hex << secAddr
+					<< L" Size: 0x" << secSize
+					<< L" Prot: " << ProtectionToString(prot)
+					<< std::dec << std::endl);
+
+				if (!intel_driver::MmSetPageProtection(iqvw64e_device_handle, secAddr, secSize, prot)) {
+					Log(L"[-] Failed to set protection for section: " << (char*)sec->Name << std::endl);
+				}
+			}
 		}
 
 		// Call driver entry point

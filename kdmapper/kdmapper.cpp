@@ -198,7 +198,12 @@ ULONG64 kdmapper::MapDriver(HANDLE iqvw64e_device_handle, BYTE* data, ULONG64 pa
 				uintptr_t secAddr = kernel_image_base + sec->VirtualAddress;
 				uint32_t secSize = sec->Misc.VirtualSize;
 
-				ULONG prot = PAGE_NOACCESS;
+				if (secSize <= 0) {
+					Log(L"[*] Skipping empty section: " << (char*)sec->Name << std::endl);
+					continue;
+				}
+
+				ULONG prot = PAGE_READONLY;
 
 				if (sec->Characteristics & IMAGE_SCN_MEM_EXECUTE) {
 					prot = (sec->Characteristics & IMAGE_SCN_MEM_WRITE) ?

@@ -10,9 +10,7 @@
 namespace intel_driver
 {
 	constexpr ULONG32 ioctl1 = 0x80862007;
-	constexpr DWORD iqvw64e_timestamp = 0x5284EAC3;
 	extern ULONG64 ntoskrnlAddr;
-
 
 	bool ClearPiDDBCacheTable(HANDLE device_handle);
 	bool ExAcquireResourceExclusiveLite(HANDLE device_handle, PVOID Resource, BOOLEAN wait);

@@ -7,6 +7,7 @@
 #include "intel_driver_resource.hpp"
 #include "service.hpp"
 #include "nt.hpp"
+#include "portable_executable.hpp"
 
 #ifdef PDB_OFFSETS
 #include "KDSymbolsHandler.h"
@@ -992,8 +993,10 @@ bool intel_driver::ClearPiDDBCacheTable(HANDLE device_handle) { //PiDDBCacheTabl
 
 	auto n = GetDriverNameW();
 
+	auto timestamp = portable_executable::GetNtHeaders((void*)intel_driver_resource::driver)->FileHeader.TimeDateStamp;
+
 	// search our entry in the table
-	nt::PiDDBCacheEntry* pFoundEntry = (nt::PiDDBCacheEntry*)LookupEntry(device_handle, PiDDBCacheTable, iqvw64e_timestamp, n.c_str());
+	nt::PiDDBCacheEntry* pFoundEntry = (nt::PiDDBCacheEntry*)LookupEntry(device_handle, PiDDBCacheTable, timestamp, n.c_str());
 	if (pFoundEntry == nullptr) {
 		Log(L"[-] Not found in cache" << std::endl);
 		ExReleaseResourceLite(device_handle, PiDDBLock);

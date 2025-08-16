@@ -1,12 +1,15 @@
-#pragma once
+﻿#pragma once
 #include <Windows.h>
 #include <winternl.h>
 #pragma comment(lib, "ntdll.lib")
 
+#pragma warning(push)
+#pragma warning(disable: 4005) //macro redefinition
+#include <ntstatus.h>
+#pragma warning(pop)
+
 namespace nt
 {
-	constexpr auto STATUS_INFO_LENGTH_MISMATCH = 0xC0000004;
-
 	constexpr auto SystemModuleInformation = 11;
 	constexpr auto SystemExtendedHandleInformation = 64;
 

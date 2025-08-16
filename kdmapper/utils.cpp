@@ -49,7 +49,7 @@ uint64_t utils::GetKernelModuleAddress(const std::string& module_name) {
 
 	NTSTATUS status = NtQuerySystemInformation(static_cast<SYSTEM_INFORMATION_CLASS>(nt::SystemModuleInformation), buffer, buffer_size, &buffer_size);
 
-	while (status == nt::STATUS_INFO_LENGTH_MISMATCH) {
+	while (status == STATUS_INFO_LENGTH_MISMATCH) {
 		if (buffer != nullptr)
 			VirtualFree(buffer, 0, MEM_RELEASE);
 

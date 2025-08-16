@@ -10,51 +10,52 @@
 namespace intel_driver
 {
 	constexpr ULONG32 ioctl1 = 0x80862007;
+	extern HANDLE hDevice;
 	extern ULONG64 ntoskrnlAddr;
 
-	bool ClearPiDDBCacheTable(HANDLE device_handle);
-	bool ExAcquireResourceExclusiveLite(HANDLE device_handle, PVOID Resource, BOOLEAN wait);
-	bool ExReleaseResourceLite(HANDLE device_handle, PVOID Resource);
-	BOOLEAN RtlDeleteElementGenericTableAvl(HANDLE device_handle, PVOID Table, PVOID Buffer);
-	PVOID RtlLookupElementGenericTableAvl(HANDLE device_handle, nt::PRTL_AVL_TABLE Table, PVOID Buffer);
-	nt::PiDDBCacheEntry* LookupEntry(HANDLE device_handle, nt::PRTL_AVL_TABLE PiDDBCacheTable, ULONG timestamp, const wchar_t * name);
-	PVOID ResolveRelativeAddress(HANDLE device_handle, _In_ PVOID Instruction, _In_ ULONG OffsetOffset, _In_ ULONG InstructionSize);
+	bool ClearPiDDBCacheTable();
+	bool ExAcquireResourceExclusiveLite(PVOID Resource, BOOLEAN wait);
+	bool ExReleaseResourceLite(PVOID Resource);
+	BOOLEAN RtlDeleteElementGenericTableAvl(PVOID Table, PVOID Buffer);
+	PVOID RtlLookupElementGenericTableAvl(nt::PRTL_AVL_TABLE Table, PVOID Buffer);
+	nt::PiDDBCacheEntry* LookupEntry(nt::PRTL_AVL_TABLE PiDDBCacheTable, ULONG timestamp, const wchar_t * name);
+	PVOID ResolveRelativeAddress(_In_ PVOID Instruction, _In_ ULONG OffsetOffset, _In_ ULONG InstructionSize);
 	bool AcquireDebugPrivilege();
 
-	uintptr_t FindPatternAtKernel(HANDLE device_handle, uintptr_t dwAddress, uintptr_t dwLen, BYTE* bMask, const char* szMask);
-	uintptr_t FindSectionAtKernel(HANDLE device_handle, const char* sectionName, uintptr_t modulePtr, PULONG size);
-	uintptr_t FindPatternInSectionAtKernel(HANDLE device_handle, const char* sectionName, uintptr_t modulePtr, BYTE* bMask, const char* szMask);
+	uintptr_t FindPatternAtKernel(uintptr_t dwAddress, uintptr_t dwLen, BYTE* bMask, const char* szMask);
+	uintptr_t FindSectionAtKernel(const char* sectionName, uintptr_t modulePtr, PULONG size);
+	uintptr_t FindPatternInSectionAtKernel(const char* sectionName, uintptr_t modulePtr, BYTE* bMask, const char* szMask);
 
-	bool ClearKernelHashBucketList(HANDLE device_handle);
-	bool ClearWdFilterDriverList(HANDLE device_handle);
+	bool ClearKernelHashBucketList();
+	bool ClearWdFilterDriverList();
 
 	bool IsRunning();
-	HANDLE Load();
-	bool Unload(HANDLE device_handle);
+	bool Load();
+	bool Unload();
 
-	bool MemCopy(HANDLE device_handle, uint64_t destination, uint64_t source, uint64_t size);
-	bool SetMemory(HANDLE device_handle, uint64_t address, uint32_t value, uint64_t size);
-	bool GetPhysicalAddress(HANDLE device_handle, uint64_t address, uint64_t* out_physical_address);
-	uint64_t MapIoSpace(HANDLE device_handle, uint64_t physical_address, uint32_t size);
-	bool UnmapIoSpace(HANDLE device_handle, uint64_t address, uint32_t size);
-	bool ReadMemory(HANDLE device_handle, uint64_t address, void* buffer, uint64_t size);
-	bool WriteMemory(HANDLE device_handle, uint64_t address, void* buffer, uint64_t size);
-	bool WriteToReadOnlyMemory(HANDLE device_handle, uint64_t address, void* buffer, uint32_t size);
+	bool MemCopy(uint64_t destination, uint64_t source, uint64_t size);
+	bool SetMemory(uint64_t address, uint32_t value, uint64_t size);
+	bool GetPhysicalAddress(uint64_t address, uint64_t* out_physical_address);
+	uint64_t MapIoSpace(uint64_t physical_address, uint32_t size);
+	bool UnmapIoSpace(uint64_t address, uint32_t size);
+	bool ReadMemory(uint64_t address, void* buffer, uint64_t size);
+	bool WriteMemory(uint64_t address, void* buffer, uint64_t size);
+	bool WriteToReadOnlyMemory(uint64_t address, void* buffer, uint32_t size);
 	/*added by herooyyy*/
-	uint64_t MmAllocateIndependentPagesEx(HANDLE device_handle, uint32_t size);
-	bool MmFreeIndependentPages(HANDLE device_handle, uint64_t address, uint32_t size);
-	BOOLEAN MmSetPageProtection(HANDLE device_handle, uint64_t address, uint32_t size, ULONG new_protect);
+	uint64_t MmAllocateIndependentPagesEx(uint32_t size);
+	bool MmFreeIndependentPages(uint64_t address, uint32_t size);
+	BOOLEAN MmSetPageProtection(uint64_t address, uint32_t size, ULONG new_protect);
 	
-	uint64_t AllocatePool(HANDLE device_handle, nt::POOL_TYPE pool_type, uint64_t size);
+	uint64_t AllocatePool(nt::POOL_TYPE pool_type, uint64_t size);
 
-	bool FreePool(HANDLE device_handle, uint64_t address);
-	uint64_t GetKernelModuleExport(HANDLE device_handle, uint64_t kernel_module_base, const std::string& function_name);
-	bool ClearMmUnloadedDrivers(HANDLE device_handle);
+	bool FreePool(uint64_t address);
+	uint64_t GetKernelModuleExport(uint64_t kernel_module_base, const std::string& function_name);
+	bool ClearMmUnloadedDrivers();
 	std::wstring GetDriverNameW();
 	std::wstring GetDriverPath();
 
 	template<typename T, typename ...A>
-	bool CallKernelFunction(HANDLE device_handle, T* out_result, uint64_t kernel_function_address, const A ...arguments) {
+	bool CallKernelFunction(T* out_result, uint64_t kernel_function_address, const A ...arguments) {
 		constexpr auto call_void = std::is_same_v<T, void>;
 
 		//if count of arguments is >4 fail
@@ -89,13 +90,13 @@ namespace intel_driver
 		uint8_t original_kernel_function[sizeof(kernel_injected_jmp)];
 		*(uint64_t*)&kernel_injected_jmp[2] = kernel_function_address;
 
-		static uint64_t kernel_NtAddAtom = GetKernelModuleExport(device_handle, intel_driver::ntoskrnlAddr, "NtAddAtom");
+		static uint64_t kernel_NtAddAtom = GetKernelModuleExport(intel_driver::ntoskrnlAddr, "NtAddAtom");
 		if (!kernel_NtAddAtom) {
 			Log(L"[-] Failed to get export ntoskrnl.NtAddAtom" << std::endl);
 			return false;
 		}
 
-		if (!ReadMemory(device_handle, kernel_NtAddAtom, &original_kernel_function, sizeof(kernel_injected_jmp)))
+		if (!ReadMemory(kernel_NtAddAtom, &original_kernel_function, sizeof(kernel_injected_jmp)))
 			return false;
 
 		if (original_kernel_function[0] == kernel_injected_jmp[0] &&
@@ -107,7 +108,7 @@ namespace intel_driver
 		}
 
 		// Overwrite the pointer with kernel_function_address
-		if (!WriteToReadOnlyMemory(device_handle, kernel_NtAddAtom, &kernel_injected_jmp, sizeof(kernel_injected_jmp)))
+		if (!WriteToReadOnlyMemory(kernel_NtAddAtom, &kernel_injected_jmp, sizeof(kernel_injected_jmp)))
 			return false;
 
 		// Call function
@@ -125,6 +126,6 @@ namespace intel_driver
 		}
 
 		// Restore the pointer/jmp
-		return WriteToReadOnlyMemory(device_handle, kernel_NtAddAtom, original_kernel_function, sizeof(kernel_injected_jmp));
+		return WriteToReadOnlyMemory(kernel_NtAddAtom, original_kernel_function, sizeof(kernel_injected_jmp));
 	}
 }

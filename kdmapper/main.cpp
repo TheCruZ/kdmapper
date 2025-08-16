@@ -15,9 +15,6 @@
 #include "KDSymbolsHandler.h"
 #endif
 
-HANDLE iqvw64e_device_handle;
-
-
 LONG WINAPI SimplestCrashHandler(EXCEPTION_POINTERS* ExceptionInfo)
 {
 	if (ExceptionInfo && ExceptionInfo->ExceptionRecord)
@@ -25,8 +22,8 @@ LONG WINAPI SimplestCrashHandler(EXCEPTION_POINTERS* ExceptionInfo)
 	else
 		Log(L"[!!] Crash" << std::endl);
 
-	if (iqvw64e_device_handle)
-		intel_driver::Unload(iqvw64e_device_handle);
+	if (intel_driver::hDevice)
+		intel_driver::Unload();
 
 	return EXCEPTION_EXECUTE_HANDLER;
 }
@@ -189,9 +186,7 @@ int wmain(const int argc, wchar_t** argv) {
 	}
 #endif
 
-	iqvw64e_device_handle = intel_driver::Load();
-
-	if (iqvw64e_device_handle == INVALID_HANDLE_VALUE) {
+	if (!intel_driver::Load()) {
 		PauseIfParentIsExplorer();
 		return -1;
 	}
@@ -199,7 +194,7 @@ int wmain(const int argc, wchar_t** argv) {
 	std::vector<uint8_t> raw_image = { 0 };
 	if (!utils::ReadFileToMemory(driver_path, &raw_image)) {
 		Log(L"[-] Failed to read image to memory" << std::endl);
-		intel_driver::Unload(iqvw64e_device_handle);
+		intel_driver::Unload();
 		PauseIfParentIsExplorer();
 		return -1;
 	}
@@ -211,14 +206,14 @@ int wmain(const int argc, wchar_t** argv) {
 	}
 
 	NTSTATUS exitCode = 0;
-	if (!kdmapper::MapDriver(iqvw64e_device_handle, raw_image.data(), 0, 0, free, !copyHeader, mode, passAllocationPtr, callbackExample, &exitCode)) {
+	if (!kdmapper::MapDriver(raw_image.data(), 0, 0, free, !copyHeader, mode, passAllocationPtr, callbackExample, &exitCode)) {
 		Log(L"[-] Failed to map " << driver_path << std::endl);
-		intel_driver::Unload(iqvw64e_device_handle);
+		intel_driver::Unload();
 		PauseIfParentIsExplorer();
 		return -1;
 	}
 
-	if (!intel_driver::Unload(iqvw64e_device_handle)) {
+	if (!intel_driver::Unload()) {
 		Log(L"[-] Warning failed to fully unload vulnerable driver " << std::endl);
 		PauseIfParentIsExplorer();
 	}

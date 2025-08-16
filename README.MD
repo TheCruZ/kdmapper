@@ -85,7 +85,8 @@ Updated and improved by https://github.com/TheCruZ
 
 Initial PDB offsets parser written by https://github.com/Mohi-eddine
 
-
+Some code cleaning https://github.com/tihomirocrew
 
 Have Fun!!
+
 

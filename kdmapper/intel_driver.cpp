@@ -751,7 +751,7 @@ bool intel_driver::ClearMmUnloadedDrivers(HANDLE device_handle) {
 
 	NTSTATUS status = NtQuerySystemInformation(static_cast<SYSTEM_INFORMATION_CLASS>(nt::SystemExtendedHandleInformation), buffer, buffer_size, &buffer_size);
 
-	while (status == nt::STATUS_INFO_LENGTH_MISMATCH)
+	while (status == STATUS_INFO_LENGTH_MISMATCH)
 	{
 		VirtualFree(buffer, 0, MEM_RELEASE);
 

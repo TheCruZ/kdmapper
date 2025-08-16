@@ -56,21 +56,19 @@ bool service::RegisterAndStart(const std::wstring& driver_path, const std::wstri
 
 	Status = nt::NtLoadDriver(&serviceStr);
 
-
 	Log("[+] NtLoadDriver Status 0x" << std::hex << Status << std::endl);
 
-	if (Status == 0xC0000603) { //STATUS_IMAGE_CERT_REVOKED
+	if (Status == STATUS_IMAGE_CERT_REVOKED) {
 		Log("[-] Your vulnerable driver list is enabled and have blocked the driver loading, you must disable vulnerable driver list to use kdmapper with intel driver" << std::endl);
 		Log("[-] Registry path to disable vulnerable driver list: HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Control\\CI\\Config" << std::endl);
 		Log("[-] Set 'VulnerableDriverBlocklistEnable' as dword to 0" << std::endl);
 	}
-	else if (Status == 0xC0000022 || Status == 0xC000009A) { //STATUS_ACCESS_DENIED and STATUS_INSUFFICIENT_RESOURCES
+	else if (Status == STATUS_ACCESS_DENIED || Status == STATUS_INSUFFICIENT_RESOURCES) {
 		Log("[-] Access Denied or Insufficient Resources (0x" << std::hex << Status << "), Probably some anticheat or antivirus running blocking the load of vulnerable driver" << std::endl);
 	}
-	
-	
+
 	//Never should occur since kdmapper checks for "IsRunning" driver before
-	if (Status == 0xC000010E) {// STATUS_IMAGE_ALREADY_LOADED
+	if (Status == STATUS_IMAGE_ALREADY_LOADED) {
 		return true;
 	}
 	
@@ -104,7 +102,6 @@ bool service::StopAndRemove(const std::wstring& serviceName) {
 		status = RegDeleteTreeW(HKEY_LOCAL_MACHINE, servicesPath.c_str());
 		return false; //lets consider unload fail as error because can cause problems with anti cheats later
 	}
-	
 
 	status = RegDeleteTreeW(HKEY_LOCAL_MACHINE, servicesPath.c_str());
 	if (status != ERROR_SUCCESS) {

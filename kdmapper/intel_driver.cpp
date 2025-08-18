@@ -754,15 +754,16 @@ bool intel_driver::ClearMmUnloadedDrivers() {
 
 	while (status == STATUS_INFO_LENGTH_MISMATCH)
 	{
-		VirtualFree(buffer, 0, MEM_RELEASE);
+		if (buffer != nullptr)
+			VirtualFree(buffer, 0, MEM_RELEASE);
 
 		buffer = VirtualAlloc(nullptr, buffer_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 		status = NtQuerySystemInformation(static_cast<SYSTEM_INFORMATION_CLASS>(nt::SystemExtendedHandleInformation), buffer, buffer_size, &buffer_size);
 	}
 
-	if (!NT_SUCCESS(status) || buffer == 0)
+	if (!NT_SUCCESS(status) || buffer == nullptr)
 	{
-		if (buffer != 0)
+		if (buffer != nullptr)
 			VirtualFree(buffer, 0, MEM_RELEASE);
 		return false;
 	}

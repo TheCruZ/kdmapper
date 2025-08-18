@@ -65,7 +65,7 @@ DWORD getParentProcess()
 
 	hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
 	__try {
-		if (hSnapshot == INVALID_HANDLE_VALUE) __leave;
+		if (hSnapshot == INVALID_HANDLE_VALUE || hSnapshot == 0) __leave;
 
 		ZeroMemory(&pe32, sizeof(pe32));
 		pe32.dwSize = sizeof(pe32);
@@ -80,7 +80,7 @@ DWORD getParentProcess()
 
 	}
 	__finally {
-		if (hSnapshot != INVALID_HANDLE_VALUE) CloseHandle(hSnapshot);
+		if (hSnapshot != INVALID_HANDLE_VALUE && hSnapshot != 0) CloseHandle(hSnapshot);
 	}
 	return ppid;
 }

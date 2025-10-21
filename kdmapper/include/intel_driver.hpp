@@ -20,7 +20,7 @@ namespace intel_driver
 	PVOID RtlLookupElementGenericTableAvl(nt::PRTL_AVL_TABLE Table, PVOID Buffer);
 	nt::PiDDBCacheEntry* LookupEntry(nt::PRTL_AVL_TABLE PiDDBCacheTable, ULONG timestamp, const wchar_t * name);
 	PVOID ResolveRelativeAddress(_In_ PVOID Instruction, _In_ ULONG OffsetOffset, _In_ ULONG InstructionSize);
-	bool AcquireDebugPrivilege();
+	NTSTATUS AcquireDebugPrivilege();
 
 	uintptr_t FindPatternAtKernel(uintptr_t dwAddress, uintptr_t dwLen, BYTE* bMask, const char* szMask);
 	uintptr_t FindSectionAtKernel(const char* sectionName, uintptr_t modulePtr, PULONG size);
@@ -30,8 +30,8 @@ namespace intel_driver
 	bool ClearWdFilterDriverList();
 
 	bool IsRunning();
-	bool Load();
-	bool Unload();
+	NTSTATUS Load();
+	NTSTATUS Unload();
 
 	bool MemCopy(uint64_t destination, uint64_t source, uint64_t size);
 	bool SetMemory(uint64_t address, uint32_t value, uint64_t size);
@@ -75,14 +75,14 @@ namespace intel_driver
 		// Setup function call
 		HMODULE ntdll = GetModuleHandleA("ntdll.dll");
 		if (ntdll == 0) {
-			Log(L"[-] Failed to load ntdll.dll" << std::endl); //never should happens
+			kdmLog(L"[-] Failed to load ntdll.dll" << std::endl); //never should happens
 			return false;
 		}
 
 		const auto NtAddAtom = reinterpret_cast<void*>(GetProcAddress(ntdll, "NtAddAtom"));
 		if (!NtAddAtom)
 		{
-			Log(L"[-] Failed to get export ntdll.NtAddAtom" << std::endl);
+			kdmLog(L"[-] Failed to get export ntdll.NtAddAtom" << std::endl);
 			return false;
 		}
 
@@ -92,7 +92,7 @@ namespace intel_driver
 
 		static uint64_t kernel_NtAddAtom = GetKernelModuleExport(intel_driver::ntoskrnlAddr, "NtAddAtom");
 		if (!kernel_NtAddAtom) {
-			Log(L"[-] Failed to get export ntoskrnl.NtAddAtom" << std::endl);
+			kdmLog(L"[-] Failed to get export ntoskrnl.NtAddAtom" << std::endl);
 			return false;
 		}
 
@@ -103,7 +103,7 @@ namespace intel_driver
 			original_kernel_function[1] == kernel_injected_jmp[1] &&
 			original_kernel_function[sizeof(kernel_injected_jmp) - 2] == kernel_injected_jmp[sizeof(kernel_injected_jmp) - 2] &&
 			original_kernel_function[sizeof(kernel_injected_jmp) - 1] == kernel_injected_jmp[sizeof(kernel_injected_jmp) - 1]) {
-			Log(L"[-] FAILED!: The code was already hooked!! another instance of kdmapper running?!" << std::endl);
+			kdmLog(L"[-] FAILED!: The code was already hooked!! another instance of kdmapper running?!" << std::endl);
 			return false;
 		}
 

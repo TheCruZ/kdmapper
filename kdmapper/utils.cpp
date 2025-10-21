@@ -6,11 +6,11 @@
 
 #include "nt.hpp"
 
-std::wstring utils::GetFullTempPath() {
+std::wstring kdmUtils::GetFullTempPath() {
 	wchar_t temp_directory[MAX_PATH + 1] = { 0 };
 	const uint32_t get_temp_path_ret = GetTempPathW(sizeof(temp_directory) / 2, temp_directory);
 	if (!get_temp_path_ret || get_temp_path_ret > MAX_PATH + 1) {
-		Log(L"[-] Failed to get temp path" << std::endl);
+		kdmLog(L"[-] Failed to get temp path" << std::endl);
 		return L"";
 	}
 	if (temp_directory[wcslen(temp_directory) - 1] == L'\\')
@@ -19,7 +19,7 @@ std::wstring utils::GetFullTempPath() {
 	return std::wstring(temp_directory);
 }
 
-bool utils::ReadFileToMemory(const std::wstring& file_path, std::vector<BYTE>* out_buffer) {
+bool kdmUtils::ReadFileToMemory(const std::wstring& file_path, std::vector<BYTE>* out_buffer) {
 	std::ifstream file_ifstream(file_path, std::ios::binary);
 
 	if (!file_ifstream)
@@ -31,7 +31,7 @@ bool utils::ReadFileToMemory(const std::wstring& file_path, std::vector<BYTE>* o
 	return true;
 }
 
-bool utils::CreateFileFromMemory(const std::wstring& desired_file_path, const char* address, size_t size) {
+bool kdmUtils::CreateFileFromMemory(const std::wstring& desired_file_path, const char* address, size_t size) {
 	std::ofstream file_ofstream(desired_file_path.c_str(), std::ios_base::out | std::ios_base::binary);
 
 	if (!file_ofstream.write(address, size)) {
@@ -43,7 +43,7 @@ bool utils::CreateFileFromMemory(const std::wstring& desired_file_path, const ch
 	return true;
 }
 
-uint64_t utils::GetKernelModuleAddress(const std::string& module_name) {
+uint64_t kdmUtils::GetKernelModuleAddress(const std::string& module_name) {
 	void* buffer = nullptr;
 	DWORD buffer_size = 0;
 
@@ -83,14 +83,14 @@ uint64_t utils::GetKernelModuleAddress(const std::string& module_name) {
 	return 0;
 }
 
-BOOLEAN utils::bDataCompare(const BYTE* pData, const BYTE* bMask, const char* szMask) {
+BOOLEAN kdmUtils::bDataCompare(const BYTE* pData, const BYTE* bMask, const char* szMask) {
 	for (; *szMask; ++szMask, ++pData, ++bMask)
 		if (*szMask == 'x' && *pData != *bMask)
 			return 0;
 	return (*szMask) == 0;
 }
 
-uintptr_t utils::FindPattern(uintptr_t dwAddress, uintptr_t dwLen, BYTE* bMask, const char* szMask) {
+uintptr_t kdmUtils::FindPattern(uintptr_t dwAddress, uintptr_t dwLen, BYTE* bMask, const char* szMask) {
 	size_t max_len = dwLen - strlen(szMask);
 	for (uintptr_t i = 0; i < max_len; i++)
 		if (bDataCompare((BYTE*)(dwAddress + i), bMask, szMask))
@@ -98,7 +98,7 @@ uintptr_t utils::FindPattern(uintptr_t dwAddress, uintptr_t dwLen, BYTE* bMask, 
 	return 0;
 }
 
-PVOID utils::FindSection(const char* sectionName, uintptr_t modulePtr, PULONG size) {
+PVOID kdmUtils::FindSection(const char* sectionName, uintptr_t modulePtr, PULONG size) {
 	size_t namelength = strlen(sectionName);
 	PIMAGE_NT_HEADERS headers = (PIMAGE_NT_HEADERS)(modulePtr + ((PIMAGE_DOS_HEADER)modulePtr)->e_lfanew);
 	PIMAGE_SECTION_HEADER sections = IMAGE_FIRST_SECTION(headers);
@@ -118,7 +118,7 @@ PVOID utils::FindSection(const char* sectionName, uintptr_t modulePtr, PULONG si
 	return 0;
 }
 
-std::wstring utils::GetCurrentAppFolder() {
+std::wstring kdmUtils::GetCurrentAppFolder() {
 	wchar_t buffer[1024];
 	GetModuleFileNameW(NULL, buffer, 1024);
 	std::wstring::size_type pos = std::wstring(buffer).find_last_of(L"\\/");

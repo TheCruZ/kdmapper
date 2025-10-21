@@ -6,12 +6,12 @@
 #include <iostream>
 
 #if defined(DISABLE_OUTPUT)
-#define Log(content) 
+#define kdmLog(content) 
 #else
-#define Log(content) std::wcout << content
+#define kdmLog(content) std::wcout << content
 #endif
 
-namespace utils
+namespace kdmUtils
 {
 	std::wstring GetFullTempPath();
 	bool ReadFileToMemory(const std::wstring& file_path, std::vector<BYTE>* out_buffer);

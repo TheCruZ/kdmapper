@@ -29,7 +29,7 @@ bool FixSecurityCookie(void* local_image, ULONG64 kernel_image_base)
 	auto load_config_directory = headers->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_LOAD_CONFIG].VirtualAddress;
 	if (!load_config_directory)
 	{
-		Log(L"[+] Load config directory wasn't found, probably StackCookie not defined, fix cookie skipped" << std::endl);
+		kdmLog(L"[+] Load config directory wasn't found, probably StackCookie not defined, fix cookie skipped" << std::endl);
 		return true;
 	}
 
@@ -37,18 +37,18 @@ bool FixSecurityCookie(void* local_image, ULONG64 kernel_image_base)
 	auto stack_cookie = load_config_struct->SecurityCookie;
 	if (!stack_cookie)
 	{
-		Log(L"[+] StackCookie not defined, fix cookie skipped" << std::endl);
+		kdmLog(L"[+] StackCookie not defined, fix cookie skipped" << std::endl);
 		return true; // as I said, it is not an error and we should allow that behavior
 	}
 
 	stack_cookie = stack_cookie - (uintptr_t)kernel_image_base + (uintptr_t)local_image; //since our local image is already relocated the base returned will be kernel address
 
 	if (*(uintptr_t*)(stack_cookie) != 0x2B992DDFA232) {
-		Log(L"[-] StackCookie already fixed!? this probably wrong" << std::endl);
+		kdmLog(L"[-] StackCookie already fixed!? this probably wrong" << std::endl);
 		return false;
 	}
 
-	Log(L"[+] Fixing stack cookie" << std::endl);
+	kdmLog(L"[+] Fixing stack cookie" << std::endl);
 
 	auto new_cookie = 0x2B992DDFA232 ^ GetCurrentProcessId() ^ GetCurrentThreadId(); // here we don't really care about the value of stack cookie, it will still works and produce nice result
 	if (new_cookie == 0x2B992DDFA232)
@@ -60,7 +60,7 @@ bool FixSecurityCookie(void* local_image, ULONG64 kernel_image_base)
 
 bool ResolveImports(portable_executable::vec_imports imports) {
 	for (const auto& current_import : imports) {
-		ULONG64 Module = utils::GetKernelModuleAddress(current_import.module_name);
+		ULONG64 Module = kdmUtils::GetKernelModuleAddress(current_import.module_name);
 		if (!Module) {
 #if !defined(DISABLE_OUTPUT)
 			std::cout << "[-] Dependency " << current_import.module_name << " wasn't found" << std::endl;
@@ -96,12 +96,12 @@ ULONG64 kdmapper::MapDriver(BYTE* data, ULONG64 param1, ULONG64 param2, bool fre
 	const PIMAGE_NT_HEADERS64 nt_headers = portable_executable::GetNtHeaders(data);
 
 	if (!nt_headers) {
-		Log(L"[-] Invalid format of PE image" << std::endl);
+		kdmLog(L"[-] Invalid format of PE image" << std::endl);
 		return 0;
 	}
 
 	if (nt_headers->OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
-		Log(L"[-] Image is not 64 bit" << std::endl);
+		kdmLog(L"[-] Image is not 64 bit" << std::endl);
 		return 0;
 	}
 
@@ -124,14 +124,14 @@ ULONG64 kdmapper::MapDriver(BYTE* data, ULONG64 param1, ULONG64 param2, bool fre
 	}
 
 	if (!kernel_image_base) {
-		Log(L"[-] Failed to allocate remote image in kernel" << std::endl);
+		kdmLog(L"[-] Failed to allocate remote image in kernel" << std::endl);
 
 		VirtualFree(local_image_base, 0, MEM_RELEASE);
 		return 0;
 	}
 
 	do {
-		Log(L"[+] Image base has been allocated at 0x" << reinterpret_cast<void*>(kernel_image_base) << std::endl);
+		kdmLog(L"[+] Image base has been allocated at 0x" << reinterpret_cast<void*>(kernel_image_base) << std::endl);
 
 		// Copy image headers
 
@@ -151,7 +151,7 @@ ULONG64 kdmapper::MapDriver(BYTE* data, ULONG64 param1, ULONG64 param2, bool fre
 		ULONG64 realBase = kernel_image_base;
 		if (destroyHeader) {
 			kernel_image_base -= TotalVirtualHeaderSize;
-			Log(L"[+] Skipped 0x" << std::hex << TotalVirtualHeaderSize << L" bytes of PE Header" << std::endl);
+			kdmLog(L"[+] Skipped 0x" << std::hex << TotalVirtualHeaderSize << L" bytes of PE Header" << std::endl);
 		}
 
 		// Resolve relocs and imports
@@ -160,12 +160,12 @@ ULONG64 kdmapper::MapDriver(BYTE* data, ULONG64 param1, ULONG64 param2, bool fre
 
 		if (!FixSecurityCookie(local_image_base, kernel_image_base ))
 		{
-			Log(L"[-] Failed to fix cookie" << std::endl);
+			kdmLog(L"[-] Failed to fix cookie" << std::endl);
 			return 0;
 		}
 
 		if (!ResolveImports(portable_executable::GetImports(local_image_base))) {
-			Log(L"[-] Failed to resolve imports" << std::endl);
+			kdmLog(L"[-] Failed to resolve imports" << std::endl);
 			kernel_image_base = realBase;
 			break;
 		}
@@ -173,7 +173,7 @@ ULONG64 kdmapper::MapDriver(BYTE* data, ULONG64 param1, ULONG64 param2, bool fre
 		// Write fixed image to kernel
 
 		if (!intel_driver::WriteMemory(realBase, (PVOID)((uintptr_t)local_image_base + (destroyHeader ? TotalVirtualHeaderSize : 0)), image_size)) {
-			Log(L"[-] Failed to write local image to remote image" << std::endl);
+			kdmLog(L"[-] Failed to write local image to remote image" << std::endl);
 			kernel_image_base = realBase;
 			break;
 		}
@@ -199,7 +199,7 @@ ULONG64 kdmapper::MapDriver(BYTE* data, ULONG64 param1, ULONG64 param2, bool fre
 				uint32_t secSize = sec->Misc.VirtualSize;
 
 				if (secSize <= 0) {
-					Log(L"[*] Skipping empty section: " << (char*)sec->Name << std::endl);
+					kdmLog(L"[*] Skipping empty section: " << (char*)sec->Name << std::endl);
 					continue;
 				}
 
@@ -216,7 +216,7 @@ ULONG64 kdmapper::MapDriver(BYTE* data, ULONG64 param1, ULONG64 param2, bool fre
 					prot = PAGE_READONLY;
 				}
 
-				Log(L"[+] Setting protection for section: "
+				kdmLog(L"[+] Setting protection for section: "
 					<< (char*)sec->Name
 					<< L" Base: 0x" << std::hex << secAddr
 					<< L" Size: 0x" << secSize
@@ -224,7 +224,7 @@ ULONG64 kdmapper::MapDriver(BYTE* data, ULONG64 param1, ULONG64 param2, bool fre
 					<< std::dec << std::endl);
 
 				if (!intel_driver::MmSetPageProtection(secAddr, secSize, prot)) {
-					Log(L"[-] Failed to set protection for section: " << (char*)sec->Name << std::endl);
+					kdmLog(L"[-] Failed to set protection for section: " << (char*)sec->Name << std::endl);
 				}
 			}
 		}
@@ -233,11 +233,11 @@ ULONG64 kdmapper::MapDriver(BYTE* data, ULONG64 param1, ULONG64 param2, bool fre
 
 		const ULONG64 address_of_entry_point = kernel_image_base + nt_headers->OptionalHeader.AddressOfEntryPoint;
 
-		Log(L"[<] Calling DriverEntry 0x" << reinterpret_cast<void*>(address_of_entry_point) << std::endl);
+		kdmLog(L"[<] Calling DriverEntry 0x" << reinterpret_cast<void*>(address_of_entry_point) << std::endl);
 
 		if (callback) {
 			if (!callback(&param1, &param2, realBase, image_size)) {
-				Log(L"[-] Callback returns false, failed!" << std::endl);
+				kdmLog(L"[-] Callback returns false, failed!" << std::endl);
 				kernel_image_base = realBase;
 				break;
 			}
@@ -245,7 +245,7 @@ ULONG64 kdmapper::MapDriver(BYTE* data, ULONG64 param1, ULONG64 param2, bool fre
 
 		NTSTATUS status = 0;
 		if (!intel_driver::CallKernelFunction(&status, address_of_entry_point, (PassAllocationAddressAsFirstParam ? realBase : param1), param2)) {
-			Log(L"[-] Failed to call driver entry" << std::endl);
+			kdmLog(L"[-] Failed to call driver entry" << std::endl);
 			kernel_image_base = realBase;
 			break;
 		}
@@ -253,11 +253,11 @@ ULONG64 kdmapper::MapDriver(BYTE* data, ULONG64 param1, ULONG64 param2, bool fre
 		if (exitCode)
 			*exitCode = status;
 
-		Log(L"[+] DriverEntry returned 0x" << std::hex << status << std::endl);
+		kdmLog(L"[+] DriverEntry returned 0x" << std::hex << status << std::endl);
 
 		// Free memory
 		if (free) {
-			Log(L"[+] Freeing memory" << std::endl);
+			kdmLog(L"[+] Freeing memory" << std::endl);
 			bool free_status = false;
 
 			if (mode == AllocationMode::AllocateIndependentPages)
@@ -269,10 +269,10 @@ ULONG64 kdmapper::MapDriver(BYTE* data, ULONG64 param1, ULONG64 param2, bool fre
 			}
 
 			if (free_status) {
-				Log(L"[+] Memory has been released" << std::endl);
+				kdmLog(L"[+] Memory has been released" << std::endl);
 			}
 			else {
-				Log(L"[-] WARNING: Failed to free memory!" << std::endl);
+				kdmLog(L"[-] WARNING: Failed to free memory!" << std::endl);
 			}
 		}
 
@@ -286,7 +286,7 @@ ULONG64 kdmapper::MapDriver(BYTE* data, ULONG64 param1, ULONG64 param2, bool fre
 
 	VirtualFree(local_image_base, 0, MEM_RELEASE);
 
-	Log(L"[+] Freeing memory" << std::endl);
+	kdmLog(L"[+] Freeing memory" << std::endl);
 	bool free_status = false;
 
 	if (mode == AllocationMode::AllocateIndependentPages)
@@ -298,10 +298,10 @@ ULONG64 kdmapper::MapDriver(BYTE* data, ULONG64 param1, ULONG64 param2, bool fre
 	}
 
 	if (free_status) {
-		Log(L"[+] Memory has been released" << std::endl);
+		kdmLog(L"[+] Memory has been released" << std::endl);
 	}
 	else {
-		Log(L"[-] WARNING: Failed to free memory!" << std::endl);
+		kdmLog(L"[-] WARNING: Failed to free memory!" << std::endl);
 	}
 
 	return 0;

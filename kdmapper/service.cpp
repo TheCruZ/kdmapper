@@ -21,6 +21,7 @@ NTSTATUS service::RegisterAndStart(const std::wstring& driver_path, const std::w
 	status = RegSetKeyValueW(dservice, NULL, L"ImagePath", REG_EXPAND_SZ, nPath.c_str(), (DWORD)(nPath.size()*sizeof(wchar_t)));
 	if (status != ERROR_SUCCESS) {
 		RegCloseKey(dservice);
+		RegDeleteTreeW(HKEY_LOCAL_MACHINE, servicesPath.c_str());
 		kdmLog("[-] Can't create 'ImagePath' registry value" << std::endl);
 		return STATUS_REGISTRY_IO_FAILED;
 	}
@@ -28,6 +29,7 @@ NTSTATUS service::RegisterAndStart(const std::wstring& driver_path, const std::w
 	status = RegSetKeyValueW(dservice, NULL, L"Type", REG_DWORD, &ServiceTypeKernel, sizeof(DWORD));
 	if (status != ERROR_SUCCESS) {
 		RegCloseKey(dservice);
+		RegDeleteTreeW(HKEY_LOCAL_MACHINE, servicesPath.c_str());
 		kdmLog("[-] Can't create 'Type' registry value" << std::endl);
 		return STATUS_REGISTRY_IO_FAILED;
 	}
@@ -36,6 +38,7 @@ NTSTATUS service::RegisterAndStart(const std::wstring& driver_path, const std::w
 
 	HMODULE ntdll = GetModuleHandleA("ntdll.dll");
 	if (ntdll == NULL) {
+		RegDeleteTreeW(HKEY_LOCAL_MACHINE, servicesPath.c_str());
 		return STATUS_UNSUCCESSFUL;
 	}
 
@@ -44,30 +47,39 @@ NTSTATUS service::RegisterAndStart(const std::wstring& driver_path, const std::w
 
 	ULONG SE_LOAD_DRIVER_PRIVILEGE = 10UL;
 	BOOLEAN SeLoadDriverWasEnabled;
-	NTSTATUS Status = nt::RtlAdjustPrivilege(SE_LOAD_DRIVER_PRIVILEGE, TRUE, FALSE, &SeLoadDriverWasEnabled);
-	if (!NT_SUCCESS(Status)) {
+	NTSTATUS ntStatus = nt::RtlAdjustPrivilege(SE_LOAD_DRIVER_PRIVILEGE, TRUE, FALSE, &SeLoadDriverWasEnabled);
+	if (!NT_SUCCESS(ntStatus)) {
+		RegDeleteTreeW(HKEY_LOCAL_MACHINE, servicesPath.c_str());
 		kdmLog("Fatal error: failed to acquire SE_LOAD_DRIVER_PRIVILEGE. Make sure you are running as administrator." << std::endl);
-		return Status;
+		return ntStatus;
 	}
 
 	std::wstring wdriver_reg_path = L"\\Registry\\Machine\\System\\CurrentControlSet\\Services\\" + serviceName;
 	UNICODE_STRING serviceStr;
 	RtlInitUnicodeString(&serviceStr, wdriver_reg_path.c_str());
 
-	Status = nt::NtLoadDriver(&serviceStr);
+	ntStatus = nt::NtLoadDriver(&serviceStr);
 
-	kdmLog("[+] NtLoadDriver Status 0x" << std::hex << Status << std::endl);
+	kdmLog("[+] NtLoadDriver Status 0x" << std::hex << ntStatus << std::endl);
 
-	if (Status == STATUS_IMAGE_CERT_REVOKED) {
+	if (ntStatus == STATUS_IMAGE_CERT_REVOKED) {
 		kdmLog("[-] Your vulnerable driver list is enabled and have blocked the driver loading, you must disable vulnerable driver list to use kdmapper with intel driver" << std::endl);
 		kdmLog("[-] Registry path to disable vulnerable driver list: HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Control\\CI\\Config" << std::endl);
 		kdmLog("[-] Set 'VulnerableDriverBlocklistEnable' as dword to 0" << std::endl);
 	}
-	else if (Status == STATUS_ACCESS_DENIED || Status == STATUS_INSUFFICIENT_RESOURCES) {
-		kdmLog("[-] Access Denied or Insufficient Resources (0x" << std::hex << Status << "), Probably some anticheat or antivirus running blocking the load of vulnerable driver" << std::endl);
+	else if (ntStatus == STATUS_ACCESS_DENIED || ntStatus == STATUS_INSUFFICIENT_RESOURCES) {
+		kdmLog("[-] Access Denied or Insufficient Resources (0x" << std::hex << ntStatus << "), Probably some anticheat or antivirus running blocking the load of vulnerable driver" << std::endl);
 	}
 	
-	return Status;
+	if (!NT_SUCCESS(ntStatus)) {
+		//Remove the service
+		status = RegDeleteTreeW(HKEY_LOCAL_MACHINE, servicesPath.c_str());
+		if (status != ERROR_SUCCESS) {
+			kdmLog("[-] Can't delete service registry key after NtLoadDriver failure" << std::endl);
+		}
+	}
+
+	return ntStatus;
 }
 
 NTSTATUS service::StopAndRemove(const std::wstring& serviceName) {

@@ -939,7 +939,7 @@ bool intel_driver::ClearPiDDBCacheTable() { //PiDDBCacheTable added on LoadDrive
 	}
 
 	auto PiDDBCacheTableOffset = KDSymbolsHandler::GetInstance()->GetOffset(L"PiDDBCacheTable");
-	if (!PiDDBLockOffset)
+	if (!PiDDBCacheTableOffset)
 	{
 		kdmLog(L"[-] Warning PiDDBCacheTable not found" << std::endl);
 		return false;

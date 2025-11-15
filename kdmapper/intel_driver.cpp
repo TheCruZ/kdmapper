@@ -1246,9 +1246,6 @@ bool intel_driver::ClearKernelHashBucketList() {
 				kdmLog(L"[+] g_KernelHashBucketList Cleaned" << std::endl);
 				if (!ExReleaseResourceLite(g_HashCacheLock)) {
 					kdmLog(L"[-] Failed to release g_KernelHashBucketList lock!" << std::endl);
-					if (!ExReleaseResourceLite(g_HashCacheLock)) {
-						kdmLog(L"[-] Failed to release g_KernelHashBucketList lock!" << std::endl);
-					}
 					return false;
 				}
 				return true;

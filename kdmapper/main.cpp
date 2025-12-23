@@ -99,7 +99,7 @@ void PauseIfParentIsExplorer() {
 
 void help() {
 	kdmLog(L"\r\n\r\n[!] Incorrect Usage!" << std::endl);
-	kdmLog(L"[+] Usage: kdmapper.exe [--free | --indPages][--PassAllocationPtr][--copy-header]");
+	kdmLog(L"[+] Usage: kdmapper.exe [--free][--indPages][--PassAllocationPtr][--copy-header]");
 
 #ifdef PDB_OFFSETS
 	kdmLog(L"[--dontUpdateOffsets [--offsetsPath \"FilePath\"]]"); 
@@ -124,12 +124,6 @@ int wmain(const int argc, wchar_t** argv) {
 
 	if (indPagesMode) {
 		kdmLog(L"[+] Allocate Independent Pages mode enabled" << std::endl);
-	}
-
-	if (free && indPagesMode) {
-		kdmLog(L"[-] Can't use --free and --indPages at the same time" << std::endl);
-		help();
-		return -1;
 	}
 
 	if (passAllocationPtr) {

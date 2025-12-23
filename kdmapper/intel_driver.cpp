@@ -587,11 +587,24 @@ bool intel_driver::MmFreeIndependentPages(uint64_t address, uint32_t size)
 			(BYTE*)"\xBA\x00\x60\x00\x00\x48\x8B\xCB\xE8\x00\x00\x00\x00\x48\x8D\x8B\x00\xF0\xFF\xFF",
 			(char*)"xxxxxxxxx????xxxxxxx");
 		if (!kernel_MmFreeIndependentPages) {
-			kdmLog(L"[!] Failed to find MmFreeIndependentPages" << std::endl);
-			return false;
-		}
 
-		kernel_MmFreeIndependentPages += 8;
+			kdmLog(L"[+] Trying second pattern for MmFreeIndependentPages" << std::endl);
+
+			// Windows 11
+			kernel_MmFreeIndependentPages = intel_driver::FindPatternInSectionAtKernel("PAGE", intel_driver::ntoskrnlAddr,
+				(BYTE*)"\x8B\x15\x00\x00\x00\x00\x48\x8B\xCB\xE8\x00\x00\x00\x00\x48\x8D\x8B",
+				(char*)"xx????xxxx????xxx");
+
+			if (!kernel_MmFreeIndependentPages) {
+				kdmLog(L"[!] Failed to find MmFreeIndependentPages" << std::endl);
+				return false;
+			}
+
+			kernel_MmFreeIndependentPages += 9; // win 11
+		}
+		else {
+			kernel_MmFreeIndependentPages += 8;
+		}
 
 		kernel_MmFreeIndependentPages = (uint64_t)ResolveRelativeAddress((PVOID)kernel_MmFreeIndependentPages, 1, 5);
 		if (!kernel_MmFreeIndependentPages) {

@@ -119,7 +119,7 @@ int wmain(const int argc, wchar_t** argv) {
 	bool copyHeader = paramExists(argc, argv, L"copy-header") > 0;
 
 	if (free) {
-		kdmLog(L"[+] Free pool memory after usage enabled" << std::endl);
+		kdmLog(L"[+] Free memory after driver execution enabled" << std::endl);
 	}
 
 	if (indPagesMode) {

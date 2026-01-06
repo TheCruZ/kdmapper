@@ -211,8 +211,10 @@ int wmain(const int argc, wchar_t** argv) {
 		kdmLog(L"[-] Warning failed to fully unload vulnerable driver " << std::endl);
 		PauseIfParentIsExplorer();
 	}
-	kdmLog(L"[+] success" << std::endl);
 
+	kdmLog(L"[+] DriverEntry returned: 0x" << std::hex << exitCode << std::endl);
+	kdmLog(L"[+] success" << std::endl);
 }
+
 
 #endif

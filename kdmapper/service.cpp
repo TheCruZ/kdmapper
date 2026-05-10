@@ -104,15 +104,17 @@ NTSTATUS service::StopAndRemove(const std::wstring& serviceName) {
 
 	NTSTATUS st = nt::NtUnloadDriver(&serviceStr);
 	kdmLog("[+] NtUnloadDriver Status 0x" << std::hex << st << std::endl);
-	if (st != ERROR_SUCCESS) {
-		kdmLog("[-] Driver Unload Failed!!" << std::endl);
-		status = RegDeleteTreeW(HKEY_LOCAL_MACHINE, servicesPath.c_str());
-		return st; //lets consider unload fail as error because can cause problems with anti cheats later
-	}
+
 
 	status = RegDeleteTreeW(HKEY_LOCAL_MACHINE, servicesPath.c_str());
-	if (status != ERROR_SUCCESS) {
+	if( status != ERROR_SUCCESS && status != ERROR_FILE_NOT_FOUND ){
+		kdmLog("[-] RegDeleteTree Failed: 0x" << std::hex << status << std:: dec << std::endl );
 		return STATUS_REGISTRY_IO_FAILED;
 	}
-	return st;
+	if ( st != STATUS_SUCCESS && st != STATUS_OBJECT_NAME_NOT_FOUND ) {
+		kdmLog("[-] Driver Unload Failed!! 0x" << std::hex << st << std::endl);
+		return st;
+	}
+
+	return STATUS_SUCCESS; 
 }

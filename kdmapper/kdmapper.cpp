@@ -161,7 +161,8 @@ ULONG64 kdmapper::MapDriver(BYTE* data, ULONG64 param1, ULONG64 param2, bool fre
 		if (!FixSecurityCookie(local_image_base, kernel_image_base ))
 		{
 			kdmLog(L"[-] Failed to fix cookie" << std::endl);
-			return 0;
+			kernel_image_base = realBase;	
+			break; // delete return 
 		}
 
 		if (!ResolveImports(portable_executable::GetImports(local_image_base))) {

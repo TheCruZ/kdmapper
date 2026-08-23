@@ -15,6 +15,7 @@ Tested from **Windows 10 1607** to **Windows 11 25H2 26200.8875** :heavy_check_m
 	--free to automatically unmap the allocated memory
 	--indPages to map in allocated independent pages
 	--PassAllocationPtr to pass allocation ptr as first param
+	--url "<http(s)://...>" to map a driver from URL directly from memory (no .sys file written to disk)
 	[PDB offset based build only]:
 	--offsetsPath "FilePath" to include your own offsets file path (by default .\offsets.ini)(if FilePath contains spaces, it must be enclosed in quotation marks)
 	--dontUpdateOffsets to execute without updating the offsets file (warning: you have to be sure that the offsets are not outdated to your current windows build, or you risk a potential BSOD)

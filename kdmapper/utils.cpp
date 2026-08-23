@@ -1,10 +1,13 @@
 #include "utils.hpp"
 #include <Windows.h>
+#include <winhttp.h>
 #include <iostream>
 #include <vector>
 #include <fstream>
 
 #include "nt.hpp"
+
+#pragma comment(lib, "winhttp.lib")
 
 std::wstring kdmUtils::GetFullTempPath() {
 	wchar_t temp_directory[MAX_PATH + 1] = { 0 };
@@ -29,6 +32,125 @@ bool kdmUtils::ReadFileToMemory(const std::wstring& file_path, std::vector<BYTE>
 	file_ifstream.close();
 
 	return true;
+}
+
+bool kdmUtils::ReadUrlToMemory(const std::wstring& url, std::vector<BYTE>* out_buffer) {
+	out_buffer->clear();
+	DWORD statusCode = 0;
+	DWORD statusCodeSize = sizeof(statusCode);
+
+	URL_COMPONENTS urlComponents = {};
+	urlComponents.dwStructSize = sizeof(urlComponents);
+
+	wchar_t hostName[256] = {};
+	wchar_t urlPath[2048] = {};
+	wchar_t extraInfo[1024] = {};
+
+	urlComponents.lpszHostName = hostName;
+	urlComponents.dwHostNameLength = _countof(hostName);
+	urlComponents.lpszUrlPath = urlPath;
+	urlComponents.dwUrlPathLength = _countof(urlPath);
+	urlComponents.lpszExtraInfo = extraInfo;
+	urlComponents.dwExtraInfoLength = _countof(extraInfo);
+
+	if (!WinHttpCrackUrl(url.c_str(), static_cast<DWORD>(url.size()), 0, &urlComponents)) {
+		kdmLog(L"[-] Invalid URL: " << url << std::endl);
+		return false;
+	}
+
+	std::wstring host(hostName, urlComponents.dwHostNameLength);
+	std::wstring path(urlPath, urlComponents.dwUrlPathLength);
+	std::wstring query(extraInfo, urlComponents.dwExtraInfoLength);
+	std::wstring object = path + query;
+	if (object.empty()) {
+		object = L"/";
+	}
+
+	if (urlComponents.nScheme != INTERNET_SCHEME_HTTP && urlComponents.nScheme != INTERNET_SCHEME_HTTPS) {
+		kdmLog(L"[-] URL must use http or https" << std::endl);
+		return false;
+	}
+
+	const bool useHttps = urlComponents.nScheme == INTERNET_SCHEME_HTTPS;
+
+	HINTERNET hSession = WinHttpOpen(L"kdmapper/1.0", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
+		WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+	if (!hSession) {
+		kdmLog(L"[-] WinHttpOpen failed: " << GetLastError() << std::endl);
+		return false;
+	}
+
+	HINTERNET hConnect = WinHttpConnect(hSession, host.c_str(), urlComponents.nPort, 0);
+	if (!hConnect) {
+		kdmLog(L"[-] WinHttpConnect failed: " << GetLastError() << std::endl);
+		WinHttpCloseHandle(hSession);
+		return false;
+	}
+
+	HINTERNET hRequest = WinHttpOpenRequest(hConnect, L"GET", object.c_str(),
+		nullptr, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES,
+		useHttps ? WINHTTP_FLAG_SECURE : 0);
+	if (!hRequest) {
+		kdmLog(L"[-] WinHttpOpenRequest failed: " << GetLastError() << std::endl);
+		WinHttpCloseHandle(hConnect);
+		WinHttpCloseHandle(hSession);
+		return false;
+	}
+
+	bool success = false;
+
+	if (!WinHttpSendRequest(hRequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0,
+		WINHTTP_NO_REQUEST_DATA, 0, 0, 0)) {
+		kdmLog(L"[-] WinHttpSendRequest failed: " << GetLastError() << std::endl);
+		goto cleanup;
+	}
+
+	if (!WinHttpReceiveResponse(hRequest, nullptr)) {
+		kdmLog(L"[-] WinHttpReceiveResponse failed: " << GetLastError() << std::endl);
+		goto cleanup;
+	}
+
+	if (!WinHttpQueryHeaders(hRequest, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+		WINHTTP_HEADER_NAME_BY_INDEX, &statusCode, &statusCodeSize, WINHTTP_NO_HEADER_INDEX)) {
+		kdmLog(L"[-] WinHttpQueryHeaders failed: " << GetLastError() << std::endl);
+		goto cleanup;
+	}
+
+	if (statusCode < 200 || statusCode >= 300) {
+		kdmLog(L"[-] HTTP request failed with status " << statusCode << std::endl);
+		goto cleanup;
+	}
+
+	for (;;) {
+		DWORD availableSize = 0;
+		if (!WinHttpQueryDataAvailable(hRequest, &availableSize)) {
+			kdmLog(L"[-] WinHttpQueryDataAvailable failed: " << GetLastError() << std::endl);
+			goto cleanup;
+		}
+
+		if (availableSize == 0) {
+			break;
+		}
+
+		const size_t previousSize = out_buffer->size();
+		out_buffer->resize(previousSize + availableSize);
+
+		DWORD downloadedSize = 0;
+		if (!WinHttpReadData(hRequest, out_buffer->data() + previousSize, availableSize, &downloadedSize)) {
+			kdmLog(L"[-] WinHttpReadData failed: " << GetLastError() << std::endl);
+			goto cleanup;
+		}
+
+		out_buffer->resize(previousSize + downloadedSize);
+	}
+
+	success = !out_buffer->empty();
+
+cleanup:
+	WinHttpCloseHandle(hRequest);
+	WinHttpCloseHandle(hConnect);
+	WinHttpCloseHandle(hSession);
+	return success;
 }
 
 bool kdmUtils::CreateFileFromMemory(const std::wstring& desired_file_path, const char* address, size_t size) {

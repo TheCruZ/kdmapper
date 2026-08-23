@@ -99,13 +99,13 @@ void PauseIfParentIsExplorer() {
 
 void help() {
 	kdmLog(L"\r\n\r\n[!] Incorrect Usage!" << std::endl);
-	kdmLog(L"[+] Usage: kdmapper.exe [--free][--indPages][--PassAllocationPtr][--copy-header]");
+	kdmLog(L"[+] Usage: kdmapper.exe [--free][--indPages][--PassAllocationPtr][--copy-header][--url <http(s)://...>]");
 
 #ifdef PDB_OFFSETS
 	kdmLog(L"[--dontUpdateOffsets [--offsetsPath \"FilePath\"]]"); 
 #endif
 	
-	kdmLog(L" driver" << std::endl);
+	kdmLog(L" [driver.sys]" << std::endl);
 
 	PauseIfParentIsExplorer();
 }
@@ -117,6 +117,7 @@ int wmain(const int argc, wchar_t** argv) {
 	bool indPagesMode = paramExists(argc, argv, L"indPages") > 0;
 	bool passAllocationPtr = paramExists(argc, argv, L"PassAllocationPtr") > 0;
 	bool copyHeader = paramExists(argc, argv, L"copy-header") > 0;
+	int urlParamIdx = paramExists(argc, argv, L"url");
 
 	if (free) {
 		kdmLog(L"[+] Free memory after driver execution enabled" << std::endl);
@@ -151,22 +152,36 @@ int wmain(const int argc, wchar_t** argv) {
 	}
 #endif
 
-	int drvIndex = -1;
-	for (int i = 1; i < argc; i++) {
-		if (std::filesystem::path(argv[i]).extension().string().compare(".sys") == 0) {
-			drvIndex = i;
-			break;
+	std::wstring driver_path;
+	std::wstring driver_url;
+
+	if (urlParamIdx > 0) {
+		if (urlParamIdx + 1 >= argc) {
+			kdmLog(L"[-] Missing value for --url" << std::endl);
+			help();
+			return -1;
 		}
+
+		driver_url = argv[urlParamIdx + 1];
+	}
+	else {
+		int drvIndex = -1;
+		for (int i = 1; i < argc; i++) {
+			if (std::filesystem::path(argv[i]).extension().string().compare(".sys") == 0) {
+				drvIndex = i;
+				break;
+			}
+		}
+
+		if (drvIndex <= 0) {
+			help();
+			return -1;
+		}
+
+		driver_path = argv[drvIndex];
 	}
 
-	if (drvIndex <= 0) {
-		help();
-		return -1;
-	}
-
-	const std::wstring driver_path = argv[drvIndex];
-
-	if (!std::filesystem::exists(driver_path)) {
+	if (driver_url.empty() && !std::filesystem::exists(driver_path)) {
 		kdmLog(L"[-] File " << driver_path << L" doesn't exist" << std::endl);
 		PauseIfParentIsExplorer();
 		return -1;
@@ -186,7 +201,16 @@ int wmain(const int argc, wchar_t** argv) {
 	}
 
 	std::vector<uint8_t> raw_image = { 0 };
-	if (!kdmUtils::ReadFileToMemory(driver_path, &raw_image)) {
+	if (!driver_url.empty()) {
+		kdmLog(L"[+] Downloading image from URL: " << driver_url << std::endl);
+		if (!kdmUtils::ReadUrlToMemory(driver_url, &raw_image)) {
+			kdmLog(L"[-] Failed to download image to memory" << std::endl);
+			intel_driver::Unload();
+			PauseIfParentIsExplorer();
+			return -1;
+		}
+	}
+	else if (!kdmUtils::ReadFileToMemory(driver_path, &raw_image)) {
 		kdmLog(L"[-] Failed to read image to memory" << std::endl);
 		intel_driver::Unload();
 		PauseIfParentIsExplorer();
@@ -201,7 +225,12 @@ int wmain(const int argc, wchar_t** argv) {
 
 	NTSTATUS exitCode = 0;
 	if (!kdmapper::MapDriver(raw_image.data(), 0, 0, free, !copyHeader, mode, passAllocationPtr, callbackExample, &exitCode)) {
-		kdmLog(L"[-] Failed to map " << driver_path << std::endl);
+		if (!driver_url.empty()) {
+			kdmLog(L"[-] Failed to map image from URL " << driver_url << std::endl);
+		}
+		else {
+			kdmLog(L"[-] Failed to map " << driver_path << std::endl);
+		}
 		intel_driver::Unload();
 		PauseIfParentIsExplorer();
 		return -1;

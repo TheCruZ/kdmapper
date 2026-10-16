@@ -133,6 +133,36 @@ NTSTATUS intel_driver::Load() {
 		return STATUS_ALREADY_REGISTERED;
 	}
 
+	// Anti-cheat services that block NtLoadDriver even when no game is running
+	struct { const wchar_t* name; const wchar_t* display; const wchar_t* stopCmd; } acServices[] = {
+		{ L"faceit",         L"FACEIT Anti-Cheat",   L"sc stop faceit" },
+		{ L"vgc",            L"Vanguard (Riot)",     L"sc stop vgc" },
+		{ L"vgk",            L"Vanguard kernel",     L"sc stop vgk" },
+		{ L"ESEADriver2",    L"ESEA Anti-Cheat",     L"sc stop ESEADriver2" },
+		{ L"BEService",      L"BattlEye",            L"sc stop BEService" },
+		{ L"BEDaisy",        L"BattlEye kernel",     L"sc stop BEDaisy" },
+	};
+
+	SC_HANDLE scm = OpenSCManagerW(NULL, NULL, SC_MANAGER_CONNECT);
+	if (scm) {
+		for (auto& ac : acServices) {
+			SC_HANDLE svc = OpenServiceW(scm, ac.name, SERVICE_QUERY_STATUS);
+			if (svc) {
+				SERVICE_STATUS svcStatus{};
+				if (QueryServiceStatus(svc, &svcStatus) && svcStatus.dwCurrentState != SERVICE_STOPPED) {
+					kdmLog(L"[-] " << ac.display << L" service is running (service: " << ac.name << L")" << std::endl);
+					kdmLog(L"[-] This blocks vulnerable driver loading even when no game is open" << std::endl);
+					kdmLog(L"[-] Stop it first: '" << ac.stopCmd << L"' (admin cmd)" << std::endl);
+					CloseServiceHandle(svc);
+					CloseServiceHandle(scm);
+					return STATUS_ACCESS_DENIED;
+				}
+				CloseServiceHandle(svc);
+			}
+		}
+		CloseServiceHandle(scm);
+	}
+
 	kdmLog(L"[<] Loading vulnerable driver, Name: " << GetDriverNameW() << std::endl);
 
 	std::wstring driver_path = GetDriverPath();

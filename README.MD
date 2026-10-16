@@ -66,6 +66,15 @@ If the problem persists, you can try to unload the intel driver manually (If the
 
 Both are usually caused by FACEIT AC or other Antivirus/AntiCheat
 
+KDMapper now detects running anti-cheat services before attempting to load and tells you which one is blocking. Common culprits:
+
+| Anti-Cheat | Service name | Stop command |
+|---|---|---|
+| FACEIT | `faceit` | `sc stop faceit` |
+| Vanguard (Riot) | `vgc` / `vgk` | `sc stop vgc` |
+| ESEA | `ESEADriver2` | `sc stop ESEADriver2` |
+| BattlEye | `BEService` / `BEDaisy` | `sc stop BEService` |
+
 **Note:** Some AntiCheats will keep running even if the game is not open
 
 **Note:** Some Antivirus will keep blocking this even if you disabled them

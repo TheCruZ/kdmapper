@@ -2,7 +2,7 @@
 
 KDMapper is a simple tool that exploits iqvw64e.sys Intel driver to manually map non-signed drivers in memory
 
-Tested from **Windows 10 1607** to **Windows 11 25H2 26200.8875** :heavy_check_mark:
+Tested from **Windows 10 1607** to **Windows 11 26H2 (Build 26300.9711)** :heavy_check_mark:
 
 **Note:** Add definition **DISABLE_OUTPUT** to remove all console outputs
 

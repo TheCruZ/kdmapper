@@ -2,7 +2,7 @@
 
 KDMapper is a simple tool that exploits iqvw64e.sys Intel driver to manually map non-signed drivers in memory
 
-Tested from **Windows 10 1607** to **Windows 11 25H2 26200.8875** :heavy_check_mark:
+Tested from **Windows 10 1607** to **Windows 11 26H2 (Build 26300.9711)** :heavy_check_mark:
 
 **Note:** Add definition **DISABLE_OUTPUT** to remove all console outputs
 
@@ -46,6 +46,7 @@ Tested from **Windows 10 1607** to **Windows 11 25H2 26200.8875** :heavy_check_m
 
 ## Requirements:
 
+- **Run kdmapper before any anti-cheat service starts.** KDMapper cleans up traces (PiDDBCacheTable, KernelHashBucketList, MmUnloadedDrivers, WdFilter) after mapping, but anti-cheat services that are already running will block the vulnerable driver from loading in the first place. Map your driver early — ideally before anti-cheat services have a chance to initialize.
 - Return from driver entry fastest as you can to prevent unexpected calls or patch guard, don't ever create a infinite while loop in the driver entry, create a thread or any other procedure to keep code running (if you can't close kdmapper you are doing it wrong)
 - Disable vulnerable driver list if enabled https://support.microsoft.com/en-au/topic/kb5020779-the-vulnerable-driver-blocklist-after-the-october-2022-preview-release-3fcbe13a-6013-4118-b584-fcfbc6a09936
 
@@ -65,6 +66,15 @@ If the problem persists, you can try to unload the intel driver manually (If the
 ### Errors 0xC0000022 and 0xC000009A:
 
 Both are usually caused by FACEIT AC or other Antivirus/AntiCheat
+
+KDMapper now detects running anti-cheat services before attempting to load and tells you which one is blocking. Common culprits:
+
+| Anti-Cheat | Service name | Stop command |
+|---|---|---|
+| FACEIT | `faceit` | `sc stop faceit` |
+| Vanguard (Riot) | `vgc` / `vgk` | `sc stop vgc` |
+| ESEA | `ESEADriver2` | `sc stop ESEADriver2` |
+| BattlEye | `BEService` / `BEDaisy` | `sc stop BEService` |
 
 **Note:** Some AntiCheats will keep running even if the game is not open
 

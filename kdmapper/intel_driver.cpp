@@ -133,6 +133,36 @@ NTSTATUS intel_driver::Load() {
 		return STATUS_ALREADY_REGISTERED;
 	}
 
+	// Anti-cheat services that block NtLoadDriver even when no game is running
+	struct { const wchar_t* name; const wchar_t* display; const wchar_t* stopCmd; } acServices[] = {
+		{ L"faceit",         L"FACEIT Anti-Cheat",   L"sc stop faceit" },
+		{ L"vgc",            L"Vanguard (Riot)",     L"sc stop vgc" },
+		{ L"vgk",            L"Vanguard kernel",     L"sc stop vgk" },
+		{ L"ESEADriver2",    L"ESEA Anti-Cheat",     L"sc stop ESEADriver2" },
+		{ L"BEService",      L"BattlEye",            L"sc stop BEService" },
+		{ L"BEDaisy",        L"BattlEye kernel",     L"sc stop BEDaisy" },
+	};
+
+	SC_HANDLE scm = OpenSCManagerW(NULL, NULL, SC_MANAGER_CONNECT);
+	if (scm) {
+		for (auto& ac : acServices) {
+			SC_HANDLE svc = OpenServiceW(scm, ac.name, SERVICE_QUERY_STATUS);
+			if (svc) {
+				SERVICE_STATUS svcStatus{};
+				if (QueryServiceStatus(svc, &svcStatus) && svcStatus.dwCurrentState != SERVICE_STOPPED) {
+					kdmLog(L"[-] " << ac.display << L" service is running (service: " << ac.name << L")" << std::endl);
+					kdmLog(L"[-] This blocks vulnerable driver loading even when no game is open" << std::endl);
+					kdmLog(L"[-] Stop it first: '" << ac.stopCmd << L"' (admin cmd)" << std::endl);
+					CloseServiceHandle(svc);
+					CloseServiceHandle(scm);
+					return STATUS_ACCESS_DENIED;
+				}
+				CloseServiceHandle(svc);
+			}
+		}
+		CloseServiceHandle(scm);
+	}
+
 	kdmLog(L"[<] Loading vulnerable driver, Name: " << GetDriverNameW() << std::endl);
 
 	std::wstring driver_path = GetDriverPath();
@@ -543,17 +573,25 @@ uint64_t intel_driver::MmAllocateIndependentPagesEx(uint32_t size)
 #else
 	if (!kernel_MmAllocateIndependentPagesEx)
 	{
-		//Updated, tested from 1803 to 24H2
+		//Updated, tested from 1803 to 26H2
 		//KeAllocateInterrupt -> 41 8B D6 B9 00 10 00 00 E8 ?? ?? ?? ?? 48 8B D8
 		kernel_MmAllocateIndependentPagesEx = intel_driver::FindPatternInSectionAtKernel((char*)".text", intel_driver::ntoskrnlAddr,
 			(BYTE*)"\x41\x8B\xD6\xB9\x00\x10\x00\x00\xE8\x00\x00\x00\x00\x48\x8B\xD8",
 			(char*)"xxxxxxxxx????xxx");
-		if (!kernel_MmAllocateIndependentPagesEx) {
-			kdmLog(L"[!] Failed to find MmAllocateIndependentPagesEx" << std::endl);
-			return 0;
+		if (kernel_MmAllocateIndependentPagesEx) {
+			kernel_MmAllocateIndependentPagesEx += 8;
 		}
-
-		kernel_MmAllocateIndependentPagesEx += 8;
+		else {
+			// 26H2+ fallback: mov edx, reg32 (2-byte form without REX prefix)
+			kernel_MmAllocateIndependentPagesEx = intel_driver::FindPatternInSectionAtKernel((char*)".text", intel_driver::ntoskrnlAddr,
+				(BYTE*)"\x8B\x00\xB9\x00\x10\x00\x00\xE8\x00\x00\x00\x00\x48\x8B\xD8",
+				(char*)"x?xxxxxxx????xxx");
+			if (!kernel_MmAllocateIndependentPagesEx) {
+				kdmLog(L"[!] Failed to find MmAllocateIndependentPagesEx" << std::endl);
+				return 0;
+			}
+			kernel_MmAllocateIndependentPagesEx += 7;
+		}
 
 		kernel_MmAllocateIndependentPagesEx = (uint64_t)ResolveRelativeAddress((PVOID)kernel_MmAllocateIndependentPagesEx, 1, 5);
 		if (!kernel_MmAllocateIndependentPagesEx) {
@@ -595,12 +633,22 @@ bool intel_driver::MmFreeIndependentPages(uint64_t address, uint32_t size)
 				(BYTE*)"\x8B\x15\x00\x00\x00\x00\x48\x8B\xCB\xE8\x00\x00\x00\x00\x48\x8D\x8B",
 				(char*)"xx????xxxx????xxx");
 
-			if (!kernel_MmFreeIndependentPages) {
-				kdmLog(L"[!] Failed to find MmFreeIndependentPages" << std::endl);
-				return false;
+			if (kernel_MmFreeIndependentPages) {
+				kernel_MmFreeIndependentPages += 9; // win 11
 			}
+			else {
+				// 26H2+: mov rcx source register may differ
+				kernel_MmFreeIndependentPages = intel_driver::FindPatternInSectionAtKernel("PAGE", intel_driver::ntoskrnlAddr,
+					(BYTE*)"\x8B\x15\x00\x00\x00\x00\x48\x8B\x00\xE8\x00\x00\x00\x00\x48\x8D",
+					(char*)"xx????xx?x????xx");
 
-			kernel_MmFreeIndependentPages += 9; // win 11
+				if (!kernel_MmFreeIndependentPages) {
+					kdmLog(L"[!] Failed to find MmFreeIndependentPages" << std::endl);
+					return false;
+				}
+
+				kernel_MmFreeIndependentPages += 9; // 26H2
+			}
 		}
 		else {
 			kernel_MmFreeIndependentPages += 8;
@@ -638,10 +686,10 @@ BOOLEAN intel_driver::MmSetPageProtection(uint64_t address, uint32_t size, ULONG
 		}
 		kernel_MmSetPageProtection += intel_driver::ntoskrnlAddr;
 #else
-		//Updated, tested from 1803 to 24H2
+		//Updated, tested from 1803 to 26H2
 		//  0F 45 ? ? 8D ? ? ? FF FF E8
 		//  0F 45 ? ? 45 8B ? ? ? ? 8D ? ? ? ? ? ? FF FF E8  (Some windows builds have a instruction in the middle)
-		kernel_MmSetPageProtection = intel_driver::FindPatternInSectionAtKernel("PAGELK", intel_driver::ntoskrnlAddr, 
+		kernel_MmSetPageProtection = intel_driver::FindPatternInSectionAtKernel("PAGELK", intel_driver::ntoskrnlAddr,
 			(BYTE*)"\x0F\x45\x00\x00\x8D\x00\x00\x00\xFF\xFF\xE8",
 			(char*)"xx??x???xxx");
 		if (!kernel_MmSetPageProtection) {
@@ -651,11 +699,21 @@ BOOLEAN intel_driver::MmSetPageProtection(uint64_t address, uint32_t size, ULONG
 				(char*)"xx??xx????x???xxx");
 
 			if (!kernel_MmSetPageProtection) {
-				kdmLog(L"[!] Failed to find MmSetPageProtection" << std::endl);
-				return FALSE;
-			}
+				// 26H2+ fallback: 41 8D (LEA with REX prefix) or extra instruction before lea
+				kernel_MmSetPageProtection = intel_driver::FindPatternInSectionAtKernel("PAGELK", intel_driver::ntoskrnlAddr,
+					(BYTE*)"\x0F\x45\x00\x00\x41\x8D\x00\x00\x00\xFF\xFF\xE8",
+					(char*)"xx??xxx???xxx");
 
-			kernel_MmSetPageProtection += 13;
+				if (!kernel_MmSetPageProtection) {
+					kdmLog(L"[!] Failed to find MmSetPageProtection" << std::endl);
+					return FALSE;
+				}
+
+				kernel_MmSetPageProtection += 11;
+			}
+			else {
+				kernel_MmSetPageProtection += 13;
+			}
 		}
 		else {
 			kernel_MmSetPageProtection += 10;
@@ -961,7 +1019,7 @@ bool intel_driver::ClearPiDDBCacheTable() { //PiDDBCacheTable added on LoadDrive
 	PVOID PiDDBLock = (PVOID)(intel_driver::ntoskrnlAddr + PiDDBLockOffset);
 	nt::PRTL_AVL_TABLE PiDDBCacheTable = (nt::PRTL_AVL_TABLE)(intel_driver::ntoskrnlAddr + PiDDBCacheTableOffset);
 #else
-	auto PiDDBLockPtr = FindPatternInSectionAtKernel("PAGE", intel_driver::ntoskrnlAddr, (PUCHAR)"\x8B\xD8\x85\xC0\x0F\x88\x00\x00\x00\x00\x65\x48\x8B\x04\x25\x00\x00\x00\x00\x66\xFF\x88\x00\x00\x00\x00\xB2\x01\x48\x8D\x0D\x00\x00\x00\x00\xE8\x00\x00\x00\x00\x4C\x8B\x00\x24", "xxxxxx????xxxxx????xxx????xxxxx????x????xx?x"); // 8B D8 85 C0 0F 88 ? ? ? ? 65 48 8B 04 25 ? ? ? ? 66 FF 88 ? ? ? ? B2 01 48 8D 0D ? ? ? ? E8 ? ? ? ? 4C 8B ? 24 update for build 22000.132
+	auto PiDDBLockPtr = FindPatternInSectionAtKernel("PAGE", intel_driver::ntoskrnlAddr, (PUCHAR)"\x8B\xD8\x85\xC0\x0F\x88\x00\x00\x00\x00\x65\x48\x8B\x04\x25\x00\x00\x00\x00\x66\xFF\x88\x00\x00\x00\x00\xB2\x01\x48\x8D\x0D\x00\x00\x00\x00\xE8\x00\x00\x00\x00\x4C\x8B\x00\x24", "xxxxxx????xxxxx????xxx????xxxxx????x????xx?x"); // build 22000.132
 	auto PiDDBCacheTablePtr = FindPatternInSectionAtKernel("PAGE", intel_driver::ntoskrnlAddr, (PUCHAR)"\x66\x03\xD2\x48\x8D\x0D", "xxxxxx"); // 66 03 D2 48 8D 0D
 
 	if (PiDDBLockPtr == NULL) { // PiDDBLock pattern changes a lot from version 1607 of windows and we will need a second pattern if we want to keep simple as possible
@@ -969,8 +1027,16 @@ bool intel_driver::ClearPiDDBCacheTable() { //PiDDBCacheTable added on LoadDrive
 		if (PiDDBLockPtr == NULL) {
 			PiDDBLockPtr = FindPatternInSectionAtKernel("PAGE", intel_driver::ntoskrnlAddr, (PUCHAR)"\x8B\xD8\x85\xC0\x0F\x88\x00\x00\x00\x00\x65\x48\x8B\x04\x25\x00\x00\x00\x00\x48\x8D\x0D\x00\x00\x00\x00\xB2\x01\x66\xFF\x88\x00\x00\x00\x00\x90\xE8\x00\x00\x00\x00\x4C\x8B\x00\x24", "xxxxxx????xxxxx????xxx????xxxxx????xx????xx?x"); // 8B D8 85 C0 0F 88 ? ? ? ? 65 48 8B 04 25 ? ? ? ? 48 8D 0D ? ? ? ? B2 01 66 FF 88 ? ? ? ? 90 E8 ? ? ? ? 4C 8B ? 24 update for build 26100.1000
 			if (PiDDBLockPtr == NULL) {
-				kdmLog(L"[-] Warning PiDDBLock not found" << std::endl);
-				return false;
+				// Build 26300+ (26H2) - NOP removed before call
+				PiDDBLockPtr = FindPatternInSectionAtKernel("PAGE", intel_driver::ntoskrnlAddr, (PUCHAR)"\x8B\xD8\x85\xC0\x0F\x88\x00\x00\x00\x00\x65\x48\x8B\x04\x25\x00\x00\x00\x00\x48\x8D\x0D\x00\x00\x00\x00\xB2\x01\x66\xFF\x88\x00\x00\x00\x00\xE8\x00\x00\x00\x00\x4C\x8B\x00\x24", "xxxxxx????xxxxx????xxx????xxxxx????x????xx?x");
+				if (PiDDBLockPtr == NULL) {
+					kdmLog(L"[-] Warning PiDDBLock not found" << std::endl);
+					return false;
+				}
+				else {
+					kdmLog(L"[+] PiDDBLock found with fourth pattern" << std::endl);
+					PiDDBLockPtr += 19;//fourth pattern offset
+				}
 			}
 			else {
 				kdmLog(L"[+] PiDDBLock found with third pattern" << std::endl);
@@ -1153,8 +1219,12 @@ bool intel_driver::ClearKernelHashBucketList() {
 #else
 	auto sig = FindPatternInSectionAtKernel("PAGE", ci, PUCHAR("\x48\x8B\x1D\x00\x00\x00\x00\xEB\x00\xF7\x43\x40\x00\x20\x00\x00"), "xxx????x?xxxxxxx");
 	if (!sig) {
-		kdmLog(L"[-] Can't Find g_KernelHashBucketList" << std::endl);
-		return false;
+		// 26H2+ fallback: test instruction may use different register encoding
+		sig = FindPatternInSectionAtKernel("PAGE", ci, PUCHAR("\x48\x8B\x1D\x00\x00\x00\x00\xEB\x00\xF7\x00\x40\x00\x20\x00\x00"), "xxx????x?x?xxxxx");
+		if (!sig) {
+			kdmLog(L"[-] Can't Find g_KernelHashBucketList" << std::endl);
+			return false;
+		}
 	}
 	auto sig2 = FindPatternAtKernel((uintptr_t)sig - 50, 50, PUCHAR("\x48\x8D\x0D"), "xxx");
 	if (!sig2) {
